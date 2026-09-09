@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lecture — FIDES Learning</title>
+<link rel="stylesheet" href="css/common.css">
+<style>
+  body{padding-top:0}
+  .main{padding-top:calc(var(--hh) + 20px);max-width:900px;margin:0 auto;padding-left:20px;padding-right:20px;padding-bottom:50px}
+  .nav-btn{height:34px;padding:0 12px;border:1px solid var(--border);border-radius:var(--r);background:transparent;
+    color:var(--t3);font-family:var(--gs);font-size:.72rem;font-weight:500;cursor:pointer;transition:all var(--tr)}
+  .nav-btn:hover{background:var(--hov);color:var(--t1)}
+  .nav-btn:disabled{opacity:.35;cursor:not-allowed}
+
+  /* ─── PLAYER ─────────────────────────────────────────── */
+  .player-wrap{position:relative;width:100%;background:#000;border-radius:var(--rl);overflow:hidden;aspect-ratio:16/9;margin-bottom:16px}
+  .player-box{position:relative;width:100%;height:100%;background:#000;overflow:hidden}
+  .player-box:fullscreen{aspect-ratio:unset}
+  #ytPlayer{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none}
+
+  .cover-shield{position:absolute;inset:0;z-index:60;background:#000;display:none;align-items:center;justify-content:center;cursor:pointer;transition:opacity .3s}
+  .cover-shield.active{display:flex}
+  .cover-shield-content{display:flex;flex-direction:column;align-items:center;gap:14px}
+  .cover-shield-icon{width:60px;height:60px;border-radius:50%;border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;transition:all .2s}
+  .cover-shield:hover .cover-shield-icon{border-color:var(--blue);background:rgba(26,115,232,.12);transform:scale(1.05)}
+  .cover-shield-icon svg{width:24px;height:24px;color:var(--blue)}
+  .cover-shield-text{font-family:var(--rb);font-size:.95rem;font-weight:500;color:rgba(255,255,255,.55);letter-spacing:.03em}
+
+  .top-bar{position:absolute;top:0;left:0;right:0;height:52px;
+    background:linear-gradient(to bottom,rgba(0,0,0,.7) 0%,rgba(0,0,0,.25) 100%);
+    z-index:50;display:flex;align-items:center;padding:0 16px;transition:opacity .25s ease;pointer-events:none}
+  .top-bar.hidden{opacity:0}
+  .top-bar-text{font-family:var(--rb);font-size:.72rem;color:rgba(255,255,255,.75);letter-spacing:.04em;font-weight:500}
+
+  .spinner-ov{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:34px;height:34px;
+    border:3px solid rgba(255,255,255,.12);border-top-color:var(--blue);border-radius:50%;
+    animation:spin .8s linear infinite;z-index:8;display:none}
+  @keyframes spin{to{transform:translate(-50%,-50%) rotate(360deg)}}
+
+  .ui-layer{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;pointer-events:none;opacity:0;transition:opacity .2s}
+  .player-box.show-ui .ui-layer{opacity:1}
+  .gesture-zone{position:absolute;inset:0;z-index:20;pointer-events:auto;cursor:pointer}
+
+  .skip-side{position:absolute;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;
+    align-items:center;gap:6px;opacity:0;pointer-events:none;z-index:45;transition:opacity .15s}
+  .skip-side.left{left:14%}.skip-side.right{right:14%}.skip-side.on{opacity:1}
+  .skip-side-ring{width:52px;height:52px;border-radius:50%;border:2px solid var(--blue);
+    background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center}
+  .skip-side-ring svg{width:18px;height:18px;color:var(--blue)}
+  .skip-side-label{font-size:.7rem;font-weight:700;color:#fff}
+
+  .ctrl-bar{padding:16px 16px 12px;pointer-events:auto;transition:opacity .25s ease;position:relative;z-index:30;
+    margin-top:auto;background:linear-gradient(to top,rgba(0,0,0,.85) 0%,rgba(0,0,0,.45) 80%,transparent 100%)}
+  .ctrl-bar.fade{opacity:0;pointer-events:none}
+  .prog-wrap{position:relative;width:100%;height:24px;display:flex;align-items:center;margin-bottom:2px;cursor:pointer}
+  .prog-track{width:100%;height:5px;background:rgba(255,255,255,.25);border-radius:3px;position:relative;transition:height .15s}
+  .prog-wrap:hover .prog-track,.prog-wrap.dragging .prog-track{height:7px}
+  .prog-fill{height:100%;width:0%;background:var(--blue);border-radius:3px;position:relative}
+  .prog-fill::after{content:'';position:absolute;right:-6px;top:50%;transform:translateY(-50%);width:12px;height:12px;
+    background:var(--blue);border-radius:50%;opacity:0;transition:opacity .12s}
+  .prog-wrap:hover .prog-fill::after,.prog-wrap.dragging .prog-fill::after{opacity:1}
+  .prog-buffered{position:absolute;top:0;left:0;height:100%;width:0%;background:rgba(255,255,255,.28);border-radius:3px;pointer-events:none}
+  .ctrl-row{display:flex;align-items:center;justify-content:space-between;height:28px}
+  .ctrl-left,.ctrl-right{display:flex;align-items:center;gap:8px}
+  .ctrl-ic{background:transparent;border:none;color:#fff;width:28px;height:28px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .12s;padding:0}
+  .ctrl-ic:hover{background:rgba(255,255,255,.12);color:var(--blue)}
+  .ctrl-ic svg{width:15px;height:15px}
+  .time-display{font-size:.68rem;font-weight:500;color:#fff;min-width:76px;font-variant-numeric:tabular-nums}
+  .vol-wrap{display:flex;align-items:center;gap:4px}
+  input[type=range]{width:46px;height:3px;accent-color:var(--blue)}
+  .speed-btn,.quality-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);color:#fff;
+    font-size:.6rem;font-weight:600;cursor:pointer;padding:3px 8px;border-radius:4px;font-family:var(--rb)}
+  .speed-btn:hover,.quality-btn:hover{background:rgba(255,255,255,.16)}
+  .popup-wrap{position:relative}
+  .speed-popup,.quality-popup{position:absolute;bottom:34px;right:0;background:var(--surf);border:1px solid var(--border);
+    border-radius:var(--rl);padding:5px 0;min-width:82px;z-index:300;box-shadow:0 10px 34px rgba(0,0,0,.35);
+    display:none;flex-direction:column}
+  .speed-popup.open,.quality-popup.open{display:flex}
+  .speed-popup-item,.quality-popup-item{padding:7px 14px;font-size:.72rem;font-weight:500;color:var(--t3);
+    cursor:pointer;text-align:center}
+  .speed-popup-item:hover,.quality-popup-item:hover{background:var(--hov);color:var(--t1)}
+  .speed-popup-item.active,.quality-popup-item.active{color:var(--blue);font-weight:700}
+
+  /* ─── LECTURE INFO / PDF LINK ────────────────────────── */
+  .lecture-info{margin-bottom:12px}
+  .lecture-info h2{font-family:var(--gs);font-size:1.2rem;font-weight:500;color:var(--t1);margin-bottom:2px}
+  .lecture-info .meta{font-size:.8rem;color:var(--t4)}
+  .btn-pdf{display:inline-flex;align-items:center;gap:6px;background:var(--blue);color:#fff;border:none;
+    padding:8px 16px;border-radius:var(--r);font-family:var(--gs);font-weight:500;font-size:.8rem;
+    text-decoration:none;margin-bottom:16px}
+  .btn-pdf:hover{background:var(--blue-h);text-decoration:none}
+  .btn-pdf svg{width:14px;height:14px}
+
+  /* ─── TABS: PDF / NOTES ──────────────────────────────── */
+  .content-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px}
+  .tab-btn{appearance:none;background:transparent;border:none;border-bottom:2px solid transparent;
+    padding:10px 4px;margin-right:22px;font-family:var(--gs);font-size:.85rem;font-weight:500;
+    color:var(--t3);cursor:pointer;display:flex;align-items:center;gap:7px}
+  .tab-btn svg{width:16px;height:16px}
+  .tab-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
+  .tab-panel{display:none}
+  .tab-panel.active{display:block}
+
+  .resource-viewer-wrap{border:1px solid var(--border);border-radius:var(--rl);overflow:hidden}
+  .resource-viewer-header{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 16px;border-bottom:1px solid var(--border);background:var(--hov)}
+  .resource-viewer-title{display:flex;align-items:center;gap:8px;font-size:.82rem;font-weight:500;color:var(--t2)}
+  .resource-viewer-title svg{width:16px;height:16px}
+  .btn-xs{font-size:.75rem;color:var(--blue)}
+  .resource-viewer-frame{width:100%;height:520px;border:none;display:block}
+  .resource-viewer-empty{padding:60px 20px;text-align:center;color:var(--t3);font-size:.85rem}
+
+  .notes-toolbar{display:flex;gap:2px;padding:8px;border:1px solid var(--border);border-bottom:none;
+    border-radius:var(--rl) var(--rl) 0 0;background:var(--hov);flex-wrap:wrap}
+  .notes-tb-btn{width:30px;height:30px;border:none;background:transparent;border-radius:var(--r);
+    cursor:pointer;color:var(--t2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem}
+  .notes-tb-btn:hover{background:var(--surf)}
+  .notes-editor{min-height:220px;border:1px solid var(--border);border-radius:0 0 var(--rl) var(--rl);
+    padding:16px;font-size:.88rem;line-height:1.6;outline:none}
+  .notes-status{font-size:.75rem;color:var(--t4);margin-top:8px;display:flex;justify-content:space-between}
+
+  /* ─── SUGGESTIONS ────────────────────────────────────── */
+  .suggestions-title{font-family:var(--gs);font-weight:500;font-size:.95rem;color:var(--t1);margin:32px 0 12px}
+  .suggestion-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+  .suggestion-card{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);
+    border-radius:var(--r);color:var(--t2);text-decoration:none;font-size:.82rem}
+  .suggestion-card:hover{background:var(--hov);text-decoration:none}
+  .suggestion-card svg{width:16px;height:16px;color:var(--blue);flex-shrink:0}
+  .sug-sub{color:var(--t4);font-size:.72rem;margin-top:2px}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left" style="min-width:0">
+    <a href="#" id="backLink" class="icon-btn" aria-label="Back to course">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+    </a>
+    <span class="logo-text">FIDES Learning</span>
+  </div>
+  <div class="header-right">
+    <button class="nav-btn" id="prevBtn">Prev</button>
+    <button class="nav-btn" id="nextBtn">Next</button>
+  </div>
+</header>
+
+<main class="main">
+  <div class="player-wrap">
+    <div class="player-box" id="playerBox" tabindex="0">
+      <div id="ytPlayer"></div>
+      <div class="top-bar" id="topBar"><span class="top-bar-text">FIDES Learning</span></div>
+      <div class="spinner-ov" id="spinnerOv"></div>
+
+      <div class="cover-shield" id="coverShield">
+        <div class="cover-shield-content">
+          <div class="cover-shield-icon"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+          <div class="cover-shield-text" id="coverShieldText">Click to start</div>
+        </div>
+      </div>
+
+      <div class="ui-layer" id="uiLayer">
+        <div class="gesture-zone" id="gestureZone"></div>
+        <div class="skip-side left" id="skipLeft"><div class="skip-side-ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 19 2 12 11 5 11 19"/><polygon points="22 19 13 12 22 5 22 19"/></svg></div><span class="skip-side-label">-10s</span></div>
+        <div class="skip-side right" id="skipRight"><div class="skip-side-ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></svg></div><span class="skip-side-label">+10s</span></div>
+
+        <div class="ctrl-bar" id="ctrlBar">
+          <div class="prog-wrap" id="progWrap"><div class="prog-track" id="progTrack"><div class="prog-buffered" id="progBuffered"></div><div class="prog-fill" id="progFill"></div></div></div>
+          <div class="ctrl-row">
+            <div class="ctrl-left">
+              <button class="ctrl-ic" id="playPauseBtn">
+                <svg viewBox="0 0 24 24" fill="currentColor" id="playIcon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <svg viewBox="0 0 24 24" fill="currentColor" id="pauseIcon" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+              </button>
+              <button class="ctrl-ic" id="rewindBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 19 2 12 11 5 11 19"/><polygon points="22 19 13 12 22 5 22 19"/></svg></button>
+              <button class="ctrl-ic" id="forwardBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></svg></button>
+              <div class="time-display" id="timeDisplay">00:00 / 00:00</div>
+            </div>
+            <div class="ctrl-right">
+              <div class="vol-wrap">
+                <button class="ctrl-ic" id="muteToggle">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="volHigh"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="volMute" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                </button>
+                <input type="range" id="volSlider" min="0" max="100" value="100">
+              </div>
+              <div class="popup-wrap" id="qualityWrap"><button class="quality-btn" id="qualityBtn">Auto</button><div class="quality-popup" id="qualityPopup"></div></div>
+              <div class="popup-wrap" id="speedWrap"><button class="speed-btn" id="speedBtn">1x</button><div class="speed-popup" id="speedPopup"></div></div>
+              <button class="ctrl-ic" id="fullscreenBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lecture-info"><h2 id="currentTitle">Loading…</h2><div class="meta" id="currentMeta"></div></div>
+  <a href="#" class="btn-pdf" id="pdfLink" target="_blank" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    Download PDF
+  </a>
+
+  <div class="content-tabs">
+    <button class="tab-btn active" id="tabBtnPdf">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Lecture PDF
+    </button>
+    <button class="tab-btn" id="tabBtnNotes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Notes
+    </button>
+  </div>
+
+  <div class="tab-panel active" id="tabPanelPdf">
+    <div class="resource-viewer-wrap">
+      <div class="resource-viewer-header">
+        <div class="resource-viewer-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Lecture resource
+        </div>
+        <a href="#" target="_blank" class="btn-xs" id="resourceOpenLink">Open in new tab</a>
+      </div>
+      <iframe class="resource-viewer-frame" id="resourceViewerFrame" allow="autoplay" allowfullscreen style="display:none"></iframe>
+      <div class="resource-viewer-empty" id="resourceViewerEmpty">No PDF for this lecture.</div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tabPanelNotes">
+    <div class="notes-toolbar" id="notesToolbar">
+      <button class="notes-tb-btn" data-cmd="bold" title="Bold">B</button>
+      <button class="notes-tb-btn" data-cmd="italic" title="Italic"><i>I</i></button>
+      <button class="notes-tb-btn" data-cmd="underline" title="Underline"><u>U</u></button>
+      <button class="notes-tb-btn" data-cmd="insertUnorderedList" title="Bullet list">•</button>
+      <button class="notes-tb-btn" id="notesLinkBtn" title="Link">🔗</button>
+    </div>
+    <div class="notes-editor" id="notesEditor" contenteditable="true" data-placeholder="Write your notes here — saved automatically, just in this browser."></div>
+    <div class="notes-status"><span id="notesStatusText">No notes yet</span><span id="notesWordCount">0 words</span></div>
+  </div>
+
+  <div id="suggestionsWrap"></div>
+</main>
+
+<div id="toastRoot" class="toast-container"></div>
+
+<script src="js/network-check.js"></script>
+<script src="js/common.js"></script>
+<script>
+/* ============================================================
+   FIDES Learning — Lecture Player
+   ============================================================ */
+
+function formatTime(sec) {
+  if (!sec || sec < 0) return '00:00';
+  const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+  return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+}
+
+let allLectures = [], currentIndex = 0, player = null, isDragging = false;
+let hideTimer = null, topBarTimer = null;
+let videoIsSafe = false, currentPlayerState = -1;
+const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+let speedIdx = 2;
+const qualityLabels = { highres: '4K', hd2160: '2160p', hd1440: '1440p', hd1080: '1080p', hd720: '720p', large: '480p', medium: '360p', small: '240p', tiny: '144p', auto: 'Auto', default: 'Auto' };
+let currentQuality = 'auto', availableQualities = [];
+
+const playerBox = document.getElementById('playerBox'), gestureZone = document.getElementById('gestureZone');
+const skipLeft = document.getElementById('skipLeft'), skipRight = document.getElementById('skipRight');
+const ctrlBar = document.getElementById('ctrlBar'), topBar = document.getElementById('topBar');
+const playIcon = document.getElementById('playIcon'), pauseIcon = document.getElementById('pauseIcon');
+const timeDisplay = document.getElementById('timeDisplay');
+const progTrack = document.getElementById('progTrack'), progFill = document.getElementById('progFill'), progBuffered = document.getElementById('progBuffered'), progWrap = document.getElementById('progWrap');
+const volSlider = document.getElementById('volSlider'), volHigh = document.getElementById('volHigh'), volMute = document.getElementById('volMute');
+const speedBtn = document.getElementById('speedBtn'), speedPopup = document.getElementById('speedPopup');
+const qualityBtn = document.getElementById('qualityBtn'), qualityPopup = document.getElementById('qualityPopup');
+const coverShield = document.getElementById('coverShield'), coverShieldText = document.getElementById('coverShieldText');
+const currentTitle = document.getElementById('currentTitle'), currentMeta = document.getElementById('currentMeta');
+const prevBtn = document.getElementById('prevBtn'), nextBtn = document.getElementById('nextBtn');
+const spinnerOv = document.getElementById('spinnerOv'), pdfLink = document.getElementById('pdfLink');
+
+/* ─── AUTH GUARD + BOOT ──────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', boot);
+
+async function boot() {
+  const token = getToken();
+  if (!token) { location.href = '/index.html'; return; }
+  try { await api('/user/me'); } catch (e) { clearSession(); location.href = '/index.html'; return; }
+  init();
+}
+
+/* ─── TABS ───────────────────────────────────────────────── */
+const tabBtnPdf = document.getElementById('tabBtnPdf'), tabBtnNotes = document.getElementById('tabBtnNotes');
+const tabPanelPdf = document.getElementById('tabPanelPdf'), tabPanelNotes = document.getElementById('tabPanelNotes');
+function switchTab(tab) {
+  const toNotes = tab === 'notes';
+  tabBtnPdf.classList.toggle('active', !toNotes);
+  tabBtnNotes.classList.toggle('active', toNotes);
+  tabPanelPdf.classList.toggle('active', !toNotes);
+  tabPanelNotes.classList.toggle('active', toNotes);
+  if (toNotes) setTimeout(() => notesEditor.focus(), 50);
+}
+tabBtnPdf.addEventListener('click', () => switchTab('pdf'));
+tabBtnNotes.addEventListener('click', () => switchTab('notes'));
+
+/* ─── RESOURCE (PDF) VIEWER ──────────────────────────────── */
+function updateResourceViewer(url) {
+  const frame = document.getElementById('resourceViewerFrame');
+  const empty = document.getElementById('resourceViewerEmpty');
+  const openLink = document.getElementById('resourceOpenLink');
+  if (!url) { frame.style.display = 'none'; empty.style.display = 'block'; openLink.href = '#'; return; }
+  empty.style.display = 'none';
+  frame.style.display = 'block';
+  let embedUrl = url;
+  const driveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (driveMatch) embedUrl = `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+  frame.src = embedUrl;
+  openLink.href = url;
+}
+
+/* ─── NOTES (local only — no notes API on the backend) ──── */
+const notesEditor = document.getElementById('notesEditor');
+const notesStatusText = document.getElementById('notesStatusText'), notesWordCount = document.getElementById('notesWordCount');
+let currentNotesLectureId = null;
+function notesKey(lecId) { return 'fides_notes_' + lecId; }
+function loadNotesForLecture(lecId) {
+  currentNotesLectureId = lecId;
+  const cached = localStorage.getItem(notesKey(lecId));
+  notesEditor.innerHTML = cached || '';
+  updateWordCount();
+  notesStatusText.textContent = cached ? 'Saved' : 'No notes yet';
+}
+function updateWordCount() {
+  const text = (notesEditor.innerText || '').trim();
+  const words = text ? text.split(/\s+/).length : 0;
+  notesWordCount.textContent = words + (words === 1 ? ' word' : ' words');
+}
+function saveNotes() {
+  if (currentNotesLectureId == null) return;
+  localStorage.setItem(notesKey(currentNotesLectureId), notesEditor.innerHTML);
+  notesStatusText.textContent = 'Saved';
+}
+notesEditor.addEventListener('input', () => { updateWordCount(); saveNotes(); });
+document.getElementById('notesToolbar').addEventListener('click', (e) => {
+  const btn = e.target.closest('.notes-tb-btn');
+  if (!btn) return;
+  e.preventDefault();
+  notesEditor.focus();
+  const cmd = btn.getAttribute('data-cmd');
+  if (cmd) { try { document.execCommand(cmd, false, null); } catch (err) {} updateWordCount(); saveNotes(); }
+});
+document.getElementById('notesLinkBtn').addEventListener('click', () => {
+  notesEditor.focus();
+  const url = prompt('Link URL:', 'https://');
+  if (url) { try { document.execCommand('createLink', false, url); } catch (err) {} saveNotes(); }
+});
+
+/* ─── UI VISIBILITY ──────────────────────────────────────── */
+function enforceBarsVisibility() {
+  const pausedOrStopped = (currentPlayerState === 2 || currentPlayerState === 0 || currentPlayerState === -1);
+  if (pausedOrStopped) {
+    topBar.classList.remove('hidden'); ctrlBar.classList.remove('fade'); playerBox.classList.add('show-ui');
+    clearTimeout(hideTimer); clearTimeout(topBarTimer);
+  } else if (currentPlayerState === 1) {
+    if (videoIsSafe) scheduleAutoHide();
+    else { topBar.classList.remove('hidden'); ctrlBar.classList.remove('fade'); playerBox.classList.add('show-ui'); }
+  } else {
+    topBar.classList.remove('hidden'); ctrlBar.classList.remove('fade'); playerBox.classList.add('show-ui');
+  }
+}
+function scheduleAutoHide() {
+  clearTimeout(hideTimer); clearTimeout(topBarTimer);
+  if (!videoIsSafe || isDragging || currentPlayerState !== 1) return;
+  hideTimer = setTimeout(() => {
+    if (currentPlayerState !== 1 || !videoIsSafe || isDragging) return;
+    ctrlBar.classList.add('fade'); playerBox.classList.remove('show-ui');
+  }, 6000);
+  topBarTimer = setTimeout(() => {
+    if (currentPlayerState !== 1 || !videoIsSafe || isDragging) return;
+    topBar.classList.add('hidden');
+  }, 6000);
+}
+function showControls() {
+  topBar.classList.remove('hidden'); ctrlBar.classList.remove('fade'); playerBox.classList.add('show-ui');
+  if (currentPlayerState === 1 && videoIsSafe) scheduleAutoHide();
+}
+function markSafe() { videoIsSafe = true; if (currentPlayerState === 1) scheduleAutoHide(); enforceBarsVisibility(); }
+function markUnsafe() { videoIsSafe = false; clearTimeout(hideTimer); clearTimeout(topBarTimer); enforceBarsVisibility(); }
+function hideCover() { coverShield.classList.remove('active'); }
+function showCover(msg) { coverShieldText.textContent = msg || 'Click to start'; coverShield.classList.add('active'); markUnsafe(); }
+function setIcons(playing) { playIcon.style.display = playing ? 'none' : 'block'; pauseIcon.style.display = playing ? 'block' : 'none'; }
+function updateNavButtons() {
+  prevBtn.disabled = currentIndex <= 0;
+  nextBtn.disabled = currentIndex >= allLectures.length - 1;
+}
+
+/* ─── LOAD LECTURE ───────────────────────────────────────── */
+function loadLecture(idx) {
+  if (!allLectures.length || idx < 0 || idx >= allLectures.length) return;
+  const lec = allLectures[idx];
+  currentIndex = idx;
+  currentTitle.textContent = lec.title;
+  currentMeta.textContent = [lec.subjectTitle, lec.chapterTitle].filter(Boolean).join(' · ');
+  updateNavButtons();
+  history.replaceState(null, '', `?lecture_id=${lec.id}&course_id=${lec.courseId}`);
+
+  if (lec.pdf_url) { pdfLink.href = lec.pdf_url; pdfLink.style.display = 'inline-flex'; }
+  else { pdfLink.style.display = 'none'; }
+  updateResourceViewer(lec.pdf_url || null);
+  loadNotesForLecture(lec.id);
+  if (player && player.loadVideoById) player.loadVideoById(lec.youtube_id);
+  renderSuggestions();
+  showCover('Click to start');
+}
+
+function renderSuggestions() {
+  const wrap = document.getElementById('suggestionsWrap');
+  const others = allLectures.filter((_, i) => i !== currentIndex).slice(0, 6);
+  if (!others.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `<div class="suggestions-title">More in this course</div>
+    <div class="suggestion-grid">${others.map(l => `
+      <a href="?lecture_id=${l.id}&course_id=${l.courseId}" class="suggestion-card" data-idx="${allLectures.indexOf(l)}">
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <div><div>${escapeHtml(l.title)}</div><div class="sug-sub">${escapeHtml(l.chapterTitle || '')}</div></div>
+      </a>`).join('')}</div>`;
+  wrap.querySelectorAll('.suggestion-card').forEach(a => {
+    a.addEventListener('click', (e) => { e.preventDefault(); loadLecture(Number(a.dataset.idx)); });
+  });
+}
+
+window.prevLecture = () => loadLecture(currentIndex - 1);
+window.nextLecture = () => loadLecture(currentIndex + 1);
+prevBtn.addEventListener('click', prevLecture);
+nextBtn.addEventListener('click', nextLecture);
+
+/* ─── PROGRESS / CONTROLS ────────────────────────────────── */
+function updateProgress() {
+  if (!player || typeof player.getCurrentTime !== 'function') { requestAnimationFrame(updateProgress); return; }
+  if (!isDragging) {
+    const c = player.getCurrentTime() || 0, d = player.getDuration() || 1;
+    progFill.style.width = (c / d) * 100 + '%';
+    timeDisplay.textContent = formatTime(c) + ' / ' + formatTime(d);
+    try { progBuffered.style.width = ((player.getVideoLoadedFraction() || 0) * 100) + '%'; } catch (e) {}
+  }
+  requestAnimationFrame(updateProgress);
+}
+
+function togglePlay() {
+  if (!player) return;
+  const s = player.getPlayerState();
+  if (s === 1) player.pauseVideo();
+  else player.playVideo();
+}
+
+function skip(sec) {
+  if (!player) return;
+  const t = Math.max(0, Math.min((player.getCurrentTime() || 0) + sec, player.getDuration() || 0));
+  player.seekTo(t, true);
+  showControls();
+}
+
+function getPctFromEvent(e) {
+  const rect = progTrack.getBoundingClientRect();
+  const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+  return Math.max(0, Math.min(1, x / rect.width));
+}
+let dragPct = 0;
+progTrack.addEventListener('mousedown', (e) => { isDragging = true; progWrap.classList.add('dragging'); dragPct = getPctFromEvent(e); progFill.style.width = dragPct * 100 + '%'; });
+progTrack.addEventListener('touchstart', (e) => { isDragging = true; progWrap.classList.add('dragging'); dragPct = getPctFromEvent(e); progFill.style.width = dragPct * 100 + '%'; }, { passive: true });
+document.addEventListener('mousemove', (e) => { if (!isDragging) return; dragPct = getPctFromEvent(e); progFill.style.width = dragPct * 100 + '%'; if (player) timeDisplay.textContent = formatTime(dragPct * (player.getDuration() || 0)) + ' / ' + formatTime(player.getDuration() || 0); });
+document.addEventListener('touchmove', (e) => { if (!isDragging) return; dragPct = getPctFromEvent(e); progFill.style.width = dragPct * 100 + '%'; }, { passive: true });
+document.addEventListener('mouseup', () => { if (!isDragging) return; isDragging = false; progWrap.classList.remove('dragging'); if (player) { player.seekTo(dragPct * player.getDuration(), true); showControls(); } });
+document.addEventListener('touchend', () => { if (!isDragging) return; isDragging = false; progWrap.classList.remove('dragging'); if (player) { player.seekTo(dragPct * player.getDuration(), true); showControls(); } });
+
+function buildSpeedPopup() {
+  speedPopup.innerHTML = '';
+  speeds.forEach((s, i) => {
+    const el = document.createElement('div');
+    el.className = 'speed-popup-item' + (i === speedIdx ? ' active' : '');
+    el.textContent = s + 'x';
+    el.addEventListener('click', (e) => {
+      e.stopPropagation(); speedIdx = i;
+      if (player) player.setPlaybackRate(s);
+      speedBtn.textContent = s + 'x';
+      localStorage.setItem('fides_speed', s);
+      buildSpeedPopup(); speedPopup.classList.remove('open');
+    });
+    speedPopup.appendChild(el);
+  });
+}
+speedBtn.addEventListener('click', (e) => { e.stopPropagation(); qualityPopup.classList.remove('open'); speedPopup.classList.toggle('open'); });
+
+function buildQualityPopup() {
+  qualityPopup.innerHTML = '';
+  const list = availableQualities.length ? availableQualities.slice() : ['auto'];
+  if (!list.includes('auto')) list.unshift('auto');
+  list.forEach(q => {
+    const el = document.createElement('div');
+    el.className = 'quality-popup-item' + (q === currentQuality ? ' active' : '');
+    el.textContent = qualityLabels[q] || q;
+    el.addEventListener('click', (e) => {
+      e.stopPropagation(); currentQuality = q;
+      if (player) player.setPlaybackQuality(q === 'auto' ? 'default' : q);
+      qualityBtn.textContent = qualityLabels[q] || q;
+      buildQualityPopup(); qualityPopup.classList.remove('open');
+    });
+    qualityPopup.appendChild(el);
+  });
+}
+qualityBtn.addEventListener('click', (e) => {
+  e.stopPropagation(); speedPopup.classList.remove('open');
+  if (player && player.getAvailableQualityLevels) {
+    const avail = player.getAvailableQualityLevels();
+    if (avail && avail.length) availableQualities = avail;
+  }
+  buildQualityPopup(); qualityPopup.classList.toggle('open');
+});
+document.addEventListener('click', () => { speedPopup.classList.remove('open'); qualityPopup.classList.remove('open'); });
+
+coverShield.addEventListener('click', () => { hideCover(); if (player && player.playVideo) player.playVideo(); });
+playerBox.addEventListener('mousemove', showControls);
+gestureZone.addEventListener('click', (e) => {
+  if (e.target.closest('.ctrl-bar') || e.target.closest('.cover-shield')) return;
+  showControls();
+  const r = playerBox.getBoundingClientRect();
+  const cx = e.clientX - r.left, cy = e.clientY - r.top;
+  const inCenter = cx > r.width * .33 && cx < r.width * .66 && cy > r.height * .25 && cy < r.height * .75;
+  if (inCenter && player && player.getPlayerState) {
+    const s = player.getPlayerState();
+    if (s === 2 || s === 0 || s === -1 || s === 5) togglePlay();
+  }
+});
+document.getElementById('playPauseBtn').addEventListener('click', (e) => { e.stopPropagation(); togglePlay(); });
+document.getElementById('rewindBtn').addEventListener('click', (e) => { e.stopPropagation(); skip(-10); });
+document.getElementById('forwardBtn').addEventListener('click', (e) => { e.stopPropagation(); skip(10); });
+volSlider.addEventListener('input', (e) => {
+  if (!player) return;
+  const v = parseInt(e.target.value);
+  player.setVolume(v);
+  volHigh.style.display = v === 0 ? 'none' : 'block';
+  volMute.style.display = v === 0 ? 'block' : 'none';
+});
+document.getElementById('muteToggle').addEventListener('click', (e) => {
+  e.stopPropagation(); if (!player) return;
+  if (player.isMuted()) { player.unMute(); volSlider.value = player.getVolume(); volHigh.style.display = 'block'; volMute.style.display = 'none'; }
+  else { player.mute(); volSlider.value = 0; volHigh.style.display = 'none'; volMute.style.display = 'block'; }
+});
+document.getElementById('fullscreenBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!document.fullscreenElement) playerBox.requestFullscreen().catch(() => {});
+  else document.exitFullscreen();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+  switch (e.code) {
+    case 'Space': e.preventDefault(); togglePlay(); break;
+    case 'ArrowLeft': e.preventDefault(); skip(-5); break;
+    case 'ArrowRight': e.preventDefault(); skip(5); break;
+    case 'ArrowUp': e.preventDefault(); if (player) { const v = Math.min(player.getVolume() + 5, 100); player.setVolume(v); volSlider.value = v; } break;
+    case 'ArrowDown': e.preventDefault(); if (player) { const v = Math.max(player.getVolume() - 5, 0); player.setVolume(v); volSlider.value = v; } break;
+    case 'KeyF': document.getElementById('fullscreenBtn').click(); break;
+    case 'KeyM': document.getElementById('muteToggle').click(); break;
+  }
+});
+
+let lastTapTime = 0;
+gestureZone.addEventListener('touchend', (e) => {
+  showControls();
+  const now = Date.now(), gap = now - lastTapTime;
+  const x = e.changedTouches[0].clientX, w = window.innerWidth;
+  if (gap < 300 && gap > 0) {
+    if (x < w * .33) { skip(-10); flashSkip('left'); }
+    else if (x > w * .66) { skip(10); flashSkip('right'); }
+  }
+  lastTapTime = now;
+});
+function flashSkip(side) {
+  const el = side === 'left' ? skipLeft : skipRight;
+  el.classList.add('on');
+  setTimeout(() => el.classList.remove('on'), 450);
+}
+
+/* ─── YOUTUBE IFRAME API READINESS ───────────────────────── */
+let _resolveYtReady;
+const ytApiReady = new Promise((resolve) => { _resolveYtReady = resolve; });
+window.onYouTubeIframeAPIReady = function () { _resolveYtReady(); };
+if (!document.querySelector('script[src*="iframe_api"]')) {
+  const tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+}
+if (typeof YT !== 'undefined' && YT.Player) _resolveYtReady();
+
+/* ─── INIT ───────────────────────────────────────────────── */
+async function init() {
+  const p = new URLSearchParams(location.search);
+  const lid = p.get('lecture_id'), cid = p.get('course_id');
+  if (!lid || !cid) { location.href = '/dashboard.html'; return; }
+  document.getElementById('backLink').href = '/course.html?id=' + cid;
+
+  const savedSpeed = parseFloat(localStorage.getItem('fides_speed') || '1');
+  const si = speeds.indexOf(savedSpeed);
+  if (si >= 0) speedIdx = si;
+  speedBtn.textContent = speeds[speedIdx] + 'x';
+  buildSpeedPopup(); buildQualityPopup();
+
+  try {
+    const { course, subjects } = await api(`/user/course?id=${cid}`);
+    document.title = `${course.title} — FIDES Learning`;
+    allLectures = [];
+    (subjects || []).forEach(s => (s.chapters || []).forEach(c => (c.lectures || []).forEach(l => {
+      allLectures.push({ id: l.id, title: l.title, youtube_id: l.youtube_id, pdf_url: l.pdf_url, subjectTitle: s.title, chapterTitle: c.title, courseId: cid });
+    })));
+    if (!allLectures.length) { currentTitle.textContent = 'No lectures in this course yet.'; return; }
+    currentIndex = allLectures.findIndex(l => String(l.id) === String(lid));
+    if (currentIndex < 0) currentIndex = 0;
+
+    loadLecture(currentIndex);
+    await ytApiReady;
+    createPlayer(allLectures[currentIndex].youtube_id);
+  } catch (e) {
+    currentTitle.textContent = 'Could not load this lecture.';
+    currentMeta.textContent = e.message;
+  }
+}
+
+function createPlayer(vid) {
+  if (player) { try { player.destroy(); } catch (e) {} player = null; }
+  document.getElementById('ytPlayer').innerHTML = '';
+  player = new YT.Player('ytPlayer', {
+    height: '100%', width: '100%', videoId: vid,
+    playerVars: { autoplay: 0, controls: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, fs: 0, disablekb: 1, playsinline: 1, origin: location.origin, enablejsapi: 1, color: 'white' },
+    events: {
+      onReady: () => { requestAnimationFrame(updateProgress); player.setVolume(volSlider.value); player.setPlaybackRate(speeds[speedIdx]); },
+      onStateChange: (e) => {
+        currentPlayerState = e.data;
+        if (e.data === 1) { spinnerOv.style.display = 'none'; setIcons(true); markSafe(); showControls(); }
+        else if (e.data === 2) { setIcons(false); enforceBarsVisibility(); }
+        else if (e.data === 3) { spinnerOv.style.display = 'block'; markUnsafe(); }
+        else if (e.data === 0) { setIcons(false); showCover('Click to replay'); if (currentIndex < allLectures.length - 1) setTimeout(nextLecture, 2500); }
+        else if (e.data === -1) { enforceBarsVisibility(); }
+        enforceBarsVisibility();
+      },
+      onError: () => { showCover('Playback error — click to retry'); toast('Playback error.', 'error'); }
+    }
+  });
+}
+</script>
+</body>
+</html>
