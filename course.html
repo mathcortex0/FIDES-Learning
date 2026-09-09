@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Course — FIDES Learning</title>
+<link rel="stylesheet" href="css/common.css">
+<style>
+  /* Page-specific: subject/chapter accordion + lecture rows */
+  .course-hero{display:flex;gap:16px;align-items:center;margin-bottom:28px}
+  .course-hero-thumb{
+    width:64px;height:64px;border-radius:var(--rl);background:var(--blue-bg);color:var(--blue);
+    display:flex;align-items:center;justify-content:center;font-size:1.8rem;flex-shrink:0;overflow:hidden;
+  }
+  .course-hero-thumb img{width:100%;height:100%;object-fit:cover}
+  .course-hero h2{margin-bottom:2px}
+
+  .subject-block{margin-bottom:26px}
+  .subject-title{font-family:var(--gs);font-weight:500;color:var(--t1);font-size:1.05rem;margin-bottom:10px}
+
+  .chapter-item{border:1px solid var(--border);border-radius:var(--rl);margin-bottom:10px;overflow:hidden}
+  .chapter-toggle{
+    width:100%;display:flex;align-items:center;gap:10px;padding:14px 16px;
+    background:var(--surf);border:none;cursor:pointer;text-align:left;font-family:var(--rb);
+  }
+  .chapter-toggle:hover{background:var(--hov)}
+  .chapter-toggle-title{font-weight:500;color:var(--t1);font-size:.92rem;flex:1}
+  .chapter-toggle-count{color:var(--t3);font-size:.78rem}
+  .chapter-chevron{transition:transform var(--tr);color:var(--t3);flex-shrink:0}
+  .chapter-item.open .chapter-chevron{transform:rotate(180deg)}
+  .chapter-lectures{max-height:0;overflow:hidden;transition:max-height var(--tr)}
+  .chapter-item.open .chapter-lectures{max-height:1000px}
+
+  .lecture-row{
+    display:flex;align-items:center;gap:12px;padding:12px 16px 12px 44px;
+    border-top:1px solid var(--border);color:var(--t2);text-decoration:none;
+    font-size:.86rem;transition:background var(--tr);
+  }
+  .lecture-row:hover{background:var(--hov);text-decoration:none}
+  .lecture-play{color:var(--blue);flex-shrink:0}
+  .lecture-row-title{flex:1}
+  .lecture-pdf-badge{font-size:.7rem;color:var(--t4);border:1px solid var(--border);
+    border-radius:10px;padding:1px 8px;flex-shrink:0}
+
+  .resources-list{display:flex;flex-direction:column;gap:8px}
+  .resource-link{display:flex;align-items:center;gap:10px;padding:12px 14px;
+    border:1px solid var(--border);border-radius:var(--r);color:var(--t2);text-decoration:none;font-size:.86rem}
+  .resource-link:hover{background:var(--hov);text-decoration:none}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <a href="/dashboard.html" class="icon-btn" aria-label="Back to dashboard">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+    </a>
+    <span class="logo-text" id="headerCourseTitle">Course</span>
+  </div>
+  <div class="header-right">
+    <div><button class="icon-btn" id="notifBell" aria-label="Notifications"></button></div>
+  </div>
+</header>
+
+<main class="main" style="margin-left:0;max-width:760px;margin-inline:auto">
+  <div id="content"></div>
+</main>
+
+<div id="toastRoot" class="toast-container"></div>
+
+<script src="js/common.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', boot);
+
+function courseId() {
+  return new URLSearchParams(location.search).get('id');
+}
+
+async function boot() {
+  const token = getToken();
+  if (!token) { location.href = '/index.html'; return; }
+  try { await api('/user/me'); } catch (e) { clearSession(); location.href = '/index.html'; return; }
+
+  initNotifBell();
+
+  const id = courseId();
+  if (!id) {
+    document.getElementById('content').innerHTML = `<div class="empty">No course specified.</div>`;
+    return;
+  }
+  loadCourse(id);
+}
+
+async function loadCourse(id) {
+  const el = document.getElementById('content');
+  el.innerHTML = loadingRow('Loading course…');
+  try {
+    const { course, subjects, resources } = await api(`/user/course?id=${id}`);
+    document.getElementById('headerCourseTitle').textContent = course.title;
+
+    const thumb = course.thumbnail_url
+      ? `<img src="${escapeHtml(course.thumbnail_url)}" alt="">`
+      : escapeHtml(course.icon || '📚');
+
+    const subjectsHtml = subjects.length
+      ? subjects.map(subjectBlock).join('')
+      : `<div class="empty">No content has been added to this course yet.</div>`;
+
+    const resourcesHtml = resources && resources.length ? `
+      <div class="section">
+        <div class="subject-title">Resources</div>
+        <div class="resources-list">
+          ${resources.map(r => `
+            <a class="resource-link" href="${escapeHtml(r.link_url)}" target="_blank" rel="noopener">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.07 0l2.83-2.83a5 5 0 00-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 00-7.07 0L4.1 13.83a5 5 0 007.07 7.07l1.5-1.5"/></svg>
+              ${escapeHtml(r.title)}
+            </a>`).join('')}
+        </div>
+      </div>` : '';
+
+    el.innerHTML = `
+      <div class="course-hero">
+        <div class="course-hero-thumb">${thumb}</div>
+        <div><h2>${escapeHtml(course.title)}</h2><div class="page-sub">${escapeHtml(course.description || '')}</div></div>
+      </div>
+      <div class="section">${subjectsHtml}</div>
+      ${resourcesHtml}`;
+
+    el.querySelectorAll('.chapter-toggle').forEach(btn => {
+      btn.addEventListener('click', () => btn.closest('.chapter-item').classList.toggle('open'));
+    });
+  } catch (e) {
+    el.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function subjectBlock(subject) {
+  const chapters = (subject.chapters || []).map(chapterItem(subject)).join('');
+  return `
+    <div class="subject-block">
+      <div class="subject-title">${escapeHtml(subject.title)}</div>
+      ${chapters || `<div class="empty" style="padding:20px">No chapters yet.</div>`}
+    </div>`;
+}
+
+function chapterItem(subject) {
+  return (chapter) => {
+    const lectureCount = (chapter.lectures || []).length;
+    const lectures = (chapter.lectures || []).map(l => `
+      <a class="lecture-row" href="/lecture.html?lecture_id=${l.id}&course_id=${courseId()}">
+        <span class="lecture-play"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4V8z"/></svg></span>
+        <span class="lecture-row-title">${escapeHtml(l.title)}</span>
+        ${l.pdf_url ? `<span class="lecture-pdf-badge">PDF</span>` : ''}
+      </a>`).join('');
+
+    return `
+      <div class="chapter-item">
+        <button class="chapter-toggle">
+          <span class="chapter-toggle-title">${escapeHtml(chapter.title)}</span>
+          <span class="chapter-toggle-count">${lectureCount} lecture${lectureCount === 1 ? '' : 's'}</span>
+          <span class="chapter-chevron"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+        </button>
+        <div class="chapter-lectures">${lectures || `<div class="empty" style="padding:16px">No lectures yet.</div>`}</div>
+      </div>`;
+  };
+}
+</script>
+</body>
+</html>
