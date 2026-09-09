@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FIDES Learning</title>
+<link rel="stylesheet" href="css/common.css">
+<style>
+  /* Page-specific: landing hero + auth split layout */
+  body{padding-top:0}
+  .landing-header{
+    position:fixed;top:0;left:0;right:0;height:var(--hh);background:var(--surf);
+    border-bottom:1px solid var(--border);z-index:1000;display:flex;align-items:center;
+    padding:0 20px;
+  }
+  .landing-wrap{
+    padding-top:var(--hh);min-height:100vh;display:grid;
+    grid-template-columns:1.1fr 1fr;align-items:center;gap:40px;
+    max-width:1080px;margin:0 auto;padding-left:24px;padding-right:24px;
+  }
+  @media (max-width:860px){
+    .landing-wrap{grid-template-columns:1fr;padding-top:calc(var(--hh) + 24px);gap:28px}
+  }
+
+  .hero-eyebrow-mark{
+    width:44px;height:44px;border-radius:12px;background:var(--blue);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-family:var(--gs);
+    font-weight:500;font-size:1.2rem;margin-bottom:20px;
+  }
+  .hero h1{
+    font-size:2.3rem;line-height:1.2;letter-spacing:-.5px;max-width:11ch;margin-bottom:16px;
+  }
+  .hero p{color:var(--t3);font-size:1rem;max-width:42ch;margin-bottom:32px}
+  @media (max-width:860px){ .hero h1{font-size:1.7rem;max-width:none} .hero p{max-width:none} }
+
+  .feature-list{display:flex;flex-direction:column;gap:18px}
+  .feature{display:flex;gap:14px;align-items:flex-start}
+  .feature-icon{
+    width:34px;height:34px;border-radius:8px;background:var(--blue-bg);color:var(--blue);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .feature-title{font-family:var(--gs);font-weight:500;color:var(--t1);font-size:.92rem;margin-bottom:2px}
+  .feature-desc{color:var(--t3);font-size:.85rem;line-height:1.5}
+
+  .auth-panel{
+    background:var(--surf);border:1px solid var(--border);border-radius:var(--rl);
+    padding:32px;width:100%;max-width:400px;justify-self:end;
+  }
+  @media (max-width:860px){ .auth-panel{justify-self:stretch;max-width:none} }
+
+  .auth-tabs{display:flex;border:1px solid var(--border);border-radius:var(--r);
+    overflow:hidden;margin-bottom:24px}
+  .auth-tab{flex:1;padding:10px;text-align:center;font-size:.85rem;font-weight:500;
+    color:var(--t3);cursor:pointer;background:var(--surf);border:none;transition:background var(--tr),color var(--tr)}
+  .auth-tab.active{background:var(--blue);color:#fff}
+</style>
+</head>
+<body>
+
+<header class="landing-header">
+  <div class="logo-wrap">
+    <span class="logo-mark">F</span>
+    <span class="logo-text">FIDES Learning</span>
+  </div>
+</header>
+
+<div class="landing-wrap">
+  <div class="hero">
+    <div class="hero-eyebrow-mark">F</div>
+    <h1>Your classes, organized the way you actually study.</h1>
+    <p>Every course is broken into subjects, chapters, and lectures — so you always know what's next, not just what's new.</p>
+
+    <div class="feature-list">
+      <div class="feature">
+        <div class="feature-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></div>
+        <div><div class="feature-title">Chapters, not chaos</div><div class="feature-desc">Course → Subject → Chapter → Lecture — structured from the start.</div></div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div>
+        <div><div class="feature-title">New classes, and you'll know</div><div class="feature-desc">Fresh lectures land regularly, with a notification the moment they're up.</div></div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M10 18h4"/></svg></div>
+        <div><div class="feature-title">Works everywhere</div><div class="feature-desc">Same experience, full-featured, on your phone or your laptop.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="auth-panel">
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin">Log in</button>
+      <button class="auth-tab" id="tabRegister">Sign up</button>
+    </div>
+    <div id="authError"></div>
+
+    <form id="loginForm">
+      <div class="field"><label>Email</label><input type="email" name="email" required autocomplete="email"></div>
+      <div class="field"><label>Password</label><input type="password" name="password" required autocomplete="current-password"></div>
+      <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center" id="loginBtn">Log in</button>
+    </form>
+
+    <form id="registerForm" class="hidden">
+      <div class="field"><label>Name</label><input type="text" name="name" required autocomplete="name"></div>
+      <div class="field"><label>Email</label><input type="email" name="email" required autocomplete="email"></div>
+      <div class="field"><label>Password</label><input type="password" name="password" required minlength="6" autocomplete="new-password"></div>
+      <div class="field"><label>Confirm password</label><input type="password" name="confirm" required minlength="6" autocomplete="new-password"></div>
+      <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center" id="registerBtn">Create account</button>
+    </form>
+  </div>
+</div>
+
+<div id="toastRoot" class="toast-container"></div>
+
+<script src="js/common.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', boot);
+
+async function boot() {
+  const token = getToken();
+  if (token) {
+    try {
+      const { user } = await api('/user/me');
+      location.href = user.role === 'admin' ? '/admin.html' : '/dashboard.html';
+      return;
+    } catch (e) { clearSession(); }
+  }
+  wireForms();
+}
+
+function wireForms() {
+  const tabLogin = document.getElementById('tabLogin');
+  const tabRegister = document.getElementById('tabRegister');
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+
+  tabLogin.addEventListener('click', () => switchTab(true));
+  tabRegister.addEventListener('click', () => switchTab(false));
+
+  function switchTab(isLogin) {
+    tabLogin.classList.toggle('active', isLogin);
+    tabRegister.classList.toggle('active', !isLogin);
+    loginForm.classList.toggle('hidden', !isLogin);
+    registerForm.classList.toggle('hidden', isLogin);
+    document.getElementById('authError').innerHTML = '';
+  }
+
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.textContent = 'Logging in…';
+    try {
+      const { token, user } = await api('/auth/login', {
+        method: 'POST', auth: false,
+        body: { email: f.email.value.trim(), password: f.password.value }
+      });
+      setSession(token, user);
+      location.href = user.role === 'admin' ? '/admin.html' : '/dashboard.html';
+    } catch (err) {
+      showAuthError(err.message);
+      btn.disabled = false; btn.textContent = 'Log in';
+    }
+  });
+
+  registerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    if (f.password.value !== f.confirm.value) return showAuthError('Passwords do not match.');
+    const btn = document.getElementById('registerBtn');
+    btn.disabled = true; btn.textContent = 'Creating account…';
+    try {
+      const { token, user } = await api('/auth/register', {
+        method: 'POST', auth: false,
+        body: { name: f.name.value.trim(), email: f.email.value.trim(), password: f.password.value }
+      });
+      setSession(token, user);
+      toast('Account created.', 'success');
+      location.href = '/dashboard.html';
+    } catch (err) {
+      showAuthError(err.message);
+      btn.disabled = false; btn.textContent = 'Create account';
+    }
+  });
+}
+
+function showAuthError(msg) {
+  document.getElementById('authError').innerHTML = `<div class="auth-error">${escapeHtml(msg)}</div>`;
+}
+</script>
+</body>
+</html>
