@@ -1,0 +1,8 @@
+name = "fides-learning"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "."
+
+[[d1_databases]]
+binding = "FIDES_DB"
+database_name = "fides-db"
+database_id = "93ca37e9-2531-4dc2-96c0-a9126b9fc318"
