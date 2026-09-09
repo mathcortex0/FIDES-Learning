@@ -1,0 +1,1083 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Admin — FIDES Learning</title>
+<link rel="stylesheet" href="css/common.css">
+</head>
+<body>
+
+<!-- ═══ AUTH SCREEN (setup / login) ═══ -->
+<div id="authScreen"></div>
+
+<!-- ═══ ADMIN SHELL ═══ -->
+<div id="adminShell" class="hidden">
+  <header class="header">
+    <div class="header-left">
+      <a href="/admin.html" class="logo-wrap">
+        <span class="logo-mark">F</span>
+        <span class="logo-text">FIDES Learning</span>
+      </a>
+      <span class="badge-admin">Admin</span>
+    </div>
+    <div class="header-right">
+      <span class="header-name" id="headerName"></span>
+      <button class="icon-btn" id="logoutBtn" title="Log out" aria-label="Log out"></button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabsNav"></nav>
+
+  <main class="main">
+    <section id="tab-dashboard" class="tab-panel"></section>
+    <section id="tab-content" class="tab-panel hidden"></section>
+    <section id="tab-bulk" class="tab-panel hidden"></section>
+    <section id="tab-users" class="tab-panel hidden"></section>
+    <section id="tab-enrollments" class="tab-panel hidden"></section>
+    <section id="tab-notifications" class="tab-panel hidden"></section>
+    <section id="tab-resources" class="tab-panel hidden"></section>
+    <section id="tab-audit" class="tab-panel hidden"></section>
+  </main>
+</div>
+
+<div id="toastRoot" class="toast-container"></div>
+
+<script src="js/common.js"></script>
+<script>
+/* ============================================================
+   FIDES Learning — Admin Panel
+   ============================================================ */
+
+let currentUser = null;
+let allCourses = [];   // cache for selects across tabs
+let allUsers = [];     // cache for selects across tabs
+
+/* ─── ICONS ──────────────────────────────────────────────── */
+const ICON_PATHS = {
+  home: '<path d="M3 12l9-9 9 9M5 10v10h14V10"/>',
+  content: '<path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>',
+  upload: '<path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M4 21h16"/>',
+  users: '<path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>',
+  check: '<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/>',
+  bell: '<path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>',
+  link: '<path d="M10 13a5 5 0 007.07 0l2.83-2.83a5 5 0 00-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 00-7.07 0L4.1 13.83a5 5 0 007.07 7.07l1.5-1.5"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  logout: '<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  trash: '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>'
+};
+function icon(name, size = 20) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON_PATHS[name] || ''}</svg>`;
+}
+
+/* ─── BOOT ───────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', boot);
+
+async function boot() {
+  const token = getToken();
+  if (token) {
+    try {
+      const { user } = await api('/user/me');
+      if (user.role === 'admin') { currentUser = user; showAdminShell(); return; }
+      clearSession();
+      toast('That account is not an admin account.', 'error');
+    } catch (e) { clearSession(); }
+  }
+  await initAuthScreen();
+}
+
+/* ─── AUTH SCREEN ────────────────────────────────────────── */
+async function initAuthScreen() {
+  const wrap = document.getElementById('authScreen');
+  wrap.innerHTML = `<div class="auth-wrap"><div class="auth-card"><div class="loading-row"><span class="spinner"></span>Checking setup status…</div></div></div>`;
+  let hasAdmin = true;
+  try {
+    const res = await api('/admin/setup-status', { auth: false });
+    hasAdmin = res.hasAdmin;
+  } catch (e) { /* default to login form if the check itself fails */ }
+  renderAuthScreen(hasAdmin);
+}
+
+function renderAuthScreen(hasAdmin) {
+  const wrap = document.getElementById('authScreen');
+  if (!hasAdmin) {
+    wrap.innerHTML = `
+      <div class="auth-wrap"><div class="auth-card">
+        <div class="auth-logo"><span class="logo-mark">F</span></div>
+        <h2 class="auth-title">Create admin account</h2>
+        <p class="auth-sub">This runs once. After this, you'll log in normally.</p>
+        <div id="authError"></div>
+        <form id="setupForm">
+          <div class="field"><label>Name</label><input type="text" name="name" required></div>
+          <div class="field"><label>Email</label><input type="email" name="email" required></div>
+          <div class="field"><label>Password</label><input type="password" name="password" required minlength="6"></div>
+          <div class="field"><label>Confirm password</label><input type="password" name="confirm" required minlength="6"></div>
+          <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center" id="setupBtn">Create admin account</button>
+        </form>
+      </div></div>`;
+    document.getElementById('setupForm').addEventListener('submit', onSetupSubmit);
+  } else {
+    wrap.innerHTML = `
+      <div class="auth-wrap"><div class="auth-card">
+        <div class="auth-logo"><span class="logo-mark">F</span></div>
+        <h2 class="auth-title">Admin login</h2>
+        <p class="auth-sub">FIDES Learning</p>
+        <div id="authError"></div>
+        <form id="loginForm">
+          <div class="field"><label>Email</label><input type="email" name="email" required></div>
+          <div class="field"><label>Password</label><input type="password" name="password" required></div>
+          <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center" id="loginBtn">Log in</button>
+        </form>
+      </div></div>`;
+    document.getElementById('loginForm').addEventListener('submit', onLoginSubmit);
+  }
+}
+
+function showAuthError(msg) {
+  document.getElementById('authError').innerHTML = `<div class="auth-error">${escapeHtml(msg)}</div>`;
+}
+
+async function onSetupSubmit(e) {
+  e.preventDefault();
+  const f = e.target;
+  const name = f.name.value.trim(), email = f.email.value.trim();
+  const password = f.password.value, confirm = f.confirm.value;
+  if (password !== confirm) return showAuthError('Passwords do not match.');
+  const btn = document.getElementById('setupBtn');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    const { token, user } = await api('/admin/setup', { method: 'POST', body: { name, email, password }, auth: false });
+    setSession(token, user);
+    currentUser = user;
+    showAdminShell();
+  } catch (err) {
+    showAuthError(err.message);
+    btn.disabled = false; btn.textContent = 'Create admin account';
+  }
+}
+
+async function onLoginSubmit(e) {
+  e.preventDefault();
+  const f = e.target;
+  const email = f.email.value.trim(), password = f.password.value;
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = 'Logging in…';
+  try {
+    const { token, user } = await api('/auth/login', { method: 'POST', body: { email, password }, auth: false });
+    if (user.role !== 'admin') { showAuthError('This is not an admin account.'); btn.disabled = false; btn.textContent = 'Log in'; return; }
+    setSession(token, user);
+    currentUser = user;
+    showAdminShell();
+  } catch (err) {
+    showAuthError(err.message);
+    btn.disabled = false; btn.textContent = 'Log in';
+  }
+}
+
+/* ─── SHELL / TABS ───────────────────────────────────────── */
+const TABS = [
+  { id: 'dashboard', label: 'Dashboard', icon: 'home', load: loadDashboardTab },
+  { id: 'content', label: 'Content', icon: 'content', load: loadContentTab },
+  { id: 'bulk', label: 'Bulk Import', icon: 'upload', load: loadBulkTab },
+  { id: 'users', label: 'Users', icon: 'users', load: loadUsersTab },
+  { id: 'enrollments', label: 'Enrollments', icon: 'check', load: loadEnrollmentsTab },
+  { id: 'notifications', label: 'Notifications', icon: 'bell', load: loadNotificationsTab },
+  { id: 'resources', label: 'Resources', icon: 'link', load: loadResourcesTab },
+  { id: 'audit', label: 'Audit Log', icon: 'clock', load: loadAuditTab }
+];
+
+function showAdminShell() {
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('adminShell').classList.remove('hidden');
+  document.getElementById('headerName').textContent = currentUser.name;
+  document.getElementById('logoutBtn').innerHTML = icon('logout');
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    clearSession();
+    location.reload();
+  });
+
+  const nav = document.getElementById('tabsNav');
+  nav.innerHTML = TABS.map(t =>
+    `<button class="tab-link" data-tab="${t.id}">${icon(t.icon, 19)}<span>${t.label}</span></button>`
+  ).join('');
+  nav.querySelectorAll('.tab-link').forEach(btn => {
+    btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+  });
+
+  // preload data used across several tabs, then open Dashboard
+  Promise.all([refreshCourses(), refreshUsers()]).finally(() => activateTab('dashboard'));
+}
+
+async function refreshCourses() {
+  try { const { courses } = await api('/admin/courses'); allCourses = courses; } catch (e) { allCourses = []; }
+}
+async function refreshUsers() {
+  try { const { users } = await api('/admin/users'); allUsers = users; } catch (e) { allUsers = []; }
+}
+
+function activateTab(id) {
+  document.querySelectorAll('.tab-link').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('hidden', p.id !== `tab-${id}`));
+  const tab = TABS.find(t => t.id === id);
+  if (tab) tab.load();
+}
+
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+async function loadDashboardTab() {
+  const el = document.getElementById('tab-dashboard');
+  el.innerHTML = loadingRow('Loading stats…');
+  try {
+    const { stats } = await api('/admin/stats');
+    el.innerHTML = `
+      <div class="page-head"><div><h2>Dashboard</h2><div class="page-sub">Overview of FIDES Learning</div></div></div>
+      <div class="stat-grid">
+        ${statCard(stats.total_users, 'Total users')}
+        ${statCard(stats.total_courses, 'Courses')}
+        ${statCard(stats.total_enrollments, 'Enrollments')}
+        ${statCard(stats.total_lectures, 'Lectures')}
+        ${statCard(stats.blocked_users, 'Blocked users')}
+      </div>`;
+  } catch (e) {
+    el.innerHTML = `<div class="empty">Couldn't load stats: ${escapeHtml(e.message)}</div>`;
+  }
+}
+function statCard(num, label) {
+  return `<div class="stat-card"><div class="stat-num">${num}</div><div class="stat-label">${escapeHtml(label)}</div></div>`;
+}
+
+/* ============================================================
+   CONTENT — Courses / Subjects / Chapters / Lectures
+   ============================================================ */
+let contentTree = null; // full subject→chapter→lecture tree for the selected course
+
+async function loadContentTab() {
+  const el = document.getElementById('tab-content');
+  el.innerHTML = `
+    <div class="page-head"><div><h2>Content</h2><div class="page-sub">Courses, subjects, chapters and lectures</div></div>
+      <button class="btn btn-primary" id="newCourseBtn">${icon('plus', 16)} New course</button></div>
+
+    <div class="section">
+      <h3>Courses</h3>
+      <div id="coursesTableWrap">${loadingRow()}</div>
+    </div>
+
+    <div class="section">
+      <h3>Add today's class</h3>
+      <p class="page-sub" style="margin-bottom:16px">Pick a course → subject → chapter, then add the lecture. Your last picks are remembered for tomorrow.</p>
+      <div class="card">
+        <div class="form-row">
+          <div class="field"><label>Course</label><select id="pickCourse"><option value="">Select a course…</option></select></div>
+          <div class="field"><label>Subject</label>
+            <div class="row"><select id="pickSubject" style="flex:1" disabled><option value="">Select course first</option></select>
+              <button class="btn btn-outline btn-sm" id="newSubjectBtn" disabled>${icon('plus', 15)}</button></div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Chapter</label>
+            <div class="row"><select id="pickChapter" style="flex:1" disabled><option value="">Select subject first</option></select>
+              <button class="btn btn-outline btn-sm" id="newChapterBtn" disabled>${icon('plus', 15)}</button></div>
+          </div>
+          <div></div>
+        </div>
+
+        <div id="lectureFormWrap" class="hidden">
+          <hr style="border:none;border-top:1px solid var(--border);margin:18px 0">
+          <div class="form-row">
+            <div class="field"><label>Lecture title</label><input id="lecTitle" type="text" placeholder="e.g. Vector Addition"></div>
+            <div class="field"><label>Order</label><input id="lecOrder" type="number" value="0"></div>
+          </div>
+          <div class="form-row">
+            <div class="field"><label>YouTube video ID</label><input id="lecYoutube" type="text" placeholder="dQw4w9WgXcQ"></div>
+            <div class="field"><label>PDF URL (optional)</label><input id="lecPdf" type="text" placeholder="https://…"></div>
+          </div>
+          <div class="checkbox-row" style="margin-bottom:16px">
+            <input type="checkbox" id="lecNotify" checked>
+            <label for="lecNotify" style="margin:0">Notify enrolled students</label>
+          </div>
+          <button class="btn btn-primary" id="addLectureBtn">${icon('plus', 16)} Add lecture</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Lectures in this chapter</h3>
+      <div id="lecturesListWrap"><div class="empty">Select a chapter above to see its lectures.</div></div>
+    </div>`;
+
+  document.getElementById('newCourseBtn').addEventListener('click', () => openCourseModal());
+  document.getElementById('pickCourse').addEventListener('change', onPickCourse);
+  document.getElementById('pickSubject').addEventListener('change', onPickSubject);
+  document.getElementById('pickChapter').addEventListener('change', onPickChapter);
+  document.getElementById('newSubjectBtn').addEventListener('click', () => openSubjectModal());
+  document.getElementById('newChapterBtn').addEventListener('click', () => openChapterModal());
+  document.getElementById('addLectureBtn').addEventListener('click', onAddLecture);
+
+  await refreshCourses();
+  renderCoursesTable();
+  populateSelect('pickCourse', allCourses.map(c => [c.id, c.title]), 'Select a course…');
+
+  const savedCourse = recallPick('course');
+  if (savedCourse && allCourses.some(c => String(c.id) === savedCourse)) {
+    document.getElementById('pickCourse').value = savedCourse;
+    await onPickCourse();
+  }
+}
+
+function populateSelect(id, pairs, placeholder) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>` +
+    pairs.map(([v, l]) => `<option value="${v}">${escapeHtml(l)}</option>`).join('');
+}
+
+function renderCoursesTable() {
+  const rows = allCourses.map(c => [
+    escapeHtml(c.title) + (c.is_featured ? ' <span class="pill pill-blue">Featured</span>' : ''),
+    formatDate(c.created_at),
+    `<div class="actions">
+       <button class="btn btn-text btn-sm" onclick="openCourseModal(${c.id})">${icon('edit', 16)}</button>
+       <button class="btn btn-text btn-sm" onclick="deleteCourse(${c.id})">${icon('trash', 16)}</button>
+     </div>`
+  ]);
+  document.getElementById('coursesTableWrap').innerHTML = renderTable({
+    headers: ['Title', 'Created', ''], rows, empty: 'No courses yet — add your first one.'
+  });
+}
+
+function openCourseModal(id) {
+  const course = id ? allCourses.find(c => c.id === id) : null;
+  openModal(`
+    <h3>${course ? 'Edit course' : 'New course'}</h3>
+    <form id="courseForm">
+      <div class="field"><label>Title</label><input name="title" required value="${escapeHtml(course?.title || '')}"></div>
+      <div class="field"><label>Description</label><textarea name="description">${escapeHtml(course?.description || '')}</textarea></div>
+      <div class="form-row">
+        <div class="field"><label>Icon (emoji)</label><input name="icon" value="${escapeHtml(course?.icon || '📚')}"></div>
+        <div class="field"><label>Thumbnail URL</label><input name="thumbnail_url" value="${escapeHtml(course?.thumbnail_url || '')}"></div>
+      </div>
+      <div class="checkbox-row" style="margin-bottom:8px">
+        <input type="checkbox" name="is_featured" id="courseFeatured" ${course?.is_featured ? 'checked' : ''}>
+        <label for="courseFeatured" style="margin:0">Featured on explore page</label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">${course ? 'Save changes' : 'Create course'}</button>
+      </div>
+    </form>`);
+  document.getElementById('courseForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const body = {
+      title: f.title.value.trim(), description: f.description.value.trim(),
+      icon: f.icon.value.trim(), thumbnail_url: f.thumbnail_url.value.trim(),
+      is_featured: f.is_featured.checked
+    };
+    try {
+      if (course) await api(`/admin/courses/${course.id}`, { method: 'PUT', body });
+      else await api('/admin/courses', { method: 'POST', body });
+      closeModal();
+      toast(course ? 'Course updated.' : 'Course created.', 'success');
+      await refreshCourses();
+      renderCoursesTable();
+      populateSelect('pickCourse', allCourses.map(c => [c.id, c.title]), 'Select a course…');
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+async function deleteCourse(id) {
+  if (!confirm('Delete this course? This removes all its subjects, chapters, lectures and resources.')) return;
+  try {
+    await api(`/admin/courses/${id}`, { method: 'DELETE' });
+    toast('Course deleted.', 'success');
+    await refreshCourses();
+    renderCoursesTable();
+    populateSelect('pickCourse', allCourses.map(c => [c.id, c.title]), 'Select a course…');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function onPickCourse() {
+  const courseId = document.getElementById('pickCourse').value;
+  const subjectSel = document.getElementById('pickSubject');
+  const chapterSel = document.getElementById('pickChapter');
+  document.getElementById('newSubjectBtn').disabled = !courseId;
+  document.getElementById('newChapterBtn').disabled = true;
+  document.getElementById('lectureFormWrap').classList.add('hidden');
+  document.getElementById('lecturesListWrap').innerHTML = `<div class="empty">Select a chapter above to see its lectures.</div>`;
+
+  if (!courseId) {
+    subjectSel.innerHTML = `<option value="">Select course first</option>`; subjectSel.disabled = true;
+    chapterSel.innerHTML = `<option value="">Select subject first</option>`; chapterSel.disabled = true;
+    return;
+  }
+  rememberPick('course', courseId);
+  subjectSel.innerHTML = `<option>Loading…</option>`;
+  try {
+    const tree = await api(`/user/course?id=${courseId}`);
+    contentTree = tree;
+    subjectSel.disabled = false;
+    populateSelect('pickSubject', tree.subjects.map(s => [s.id, s.title]), 'Select a subject…');
+    chapterSel.innerHTML = `<option value="">Select subject first</option>`; chapterSel.disabled = true;
+
+    const savedSubject = recallPick('subject');
+    if (savedSubject && tree.subjects.some(s => String(s.id) === savedSubject)) {
+      subjectSel.value = savedSubject;
+      await onPickSubject();
+    }
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function onPickSubject() {
+  const subjectId = document.getElementById('pickSubject').value;
+  const chapterSel = document.getElementById('pickChapter');
+  document.getElementById('newChapterBtn').disabled = !subjectId;
+  document.getElementById('lectureFormWrap').classList.add('hidden');
+  document.getElementById('lecturesListWrap').innerHTML = `<div class="empty">Select a chapter above to see its lectures.</div>`;
+
+  if (!subjectId || !contentTree) {
+    chapterSel.innerHTML = `<option value="">Select subject first</option>`; chapterSel.disabled = true;
+    return;
+  }
+  rememberPick('subject', subjectId);
+  const subject = contentTree.subjects.find(s => String(s.id) === String(subjectId));
+  populateSelect('pickChapter', (subject?.chapters || []).map(c => [c.id, c.title]), 'Select a chapter…');
+  chapterSel.disabled = false;
+
+  const savedChapter = recallPick('chapter');
+  if (savedChapter && subject?.chapters.some(c => String(c.id) === savedChapter)) {
+    chapterSel.value = savedChapter;
+    onPickChapter();
+  }
+}
+
+function onPickChapter() {
+  const chapterId = document.getElementById('pickChapter').value;
+  if (!chapterId) {
+    document.getElementById('lectureFormWrap').classList.add('hidden');
+    document.getElementById('lecturesListWrap').innerHTML = `<div class="empty">Select a chapter above to see its lectures.</div>`;
+    return;
+  }
+  rememberPick('chapter', chapterId);
+  document.getElementById('lectureFormWrap').classList.remove('hidden');
+  renderLecturesForCurrentChapter();
+}
+
+function currentChapter() {
+  const subjectId = document.getElementById('pickSubject').value;
+  const chapterId = document.getElementById('pickChapter').value;
+  const subject = contentTree?.subjects.find(s => String(s.id) === String(subjectId));
+  return subject?.chapters.find(c => String(c.id) === String(chapterId));
+}
+
+function renderLecturesForCurrentChapter() {
+  const chapter = currentChapter();
+  const lectures = chapter?.lectures || [];
+  document.getElementById('lecOrder').value = lectures.length;
+  const rows = lectures.map(l => [
+    escapeHtml(l.title),
+    l.youtube_id ? escapeHtml(l.youtube_id) : '<span class="pill pill-grey">none</span>',
+    l.pdf_url ? `<a href="${escapeHtml(l.pdf_url)}" target="_blank" rel="noopener">PDF</a>` : '—',
+    `<div class="actions">
+       <button class="btn btn-text btn-sm" onclick="openLectureEditModal(${l.id})">${icon('edit', 16)}</button>
+       <button class="btn btn-text btn-sm" onclick="deleteLecture(${l.id})">${icon('trash', 16)}</button>
+     </div>`
+  ]);
+  document.getElementById('lecturesListWrap').innerHTML = renderTable({
+    headers: ['Title', 'YouTube ID', 'PDF', ''], rows, empty: 'No lectures in this chapter yet.'
+  });
+}
+
+async function onAddLecture() {
+  const chapterId = document.getElementById('pickChapter').value;
+  const title = document.getElementById('lecTitle').value.trim();
+  if (!chapterId) return toast('Pick a chapter first.', 'error');
+  if (!title) return toast('Lecture title is required.', 'error');
+  const body = {
+    chapter_id: Number(chapterId),
+    title,
+    youtube_id: document.getElementById('lecYoutube').value.trim(),
+    pdf_url: document.getElementById('lecPdf').value.trim(),
+    sort_order: Number(document.getElementById('lecOrder').value) || 0,
+    send_notification: document.getElementById('lecNotify').checked
+  };
+  const btn = document.getElementById('addLectureBtn');
+  btn.disabled = true;
+  try {
+    await api('/admin/lectures', { method: 'POST', body });
+    toast('Lecture added.', 'success');
+    document.getElementById('lecTitle').value = '';
+    document.getElementById('lecYoutube').value = '';
+    document.getElementById('lecPdf').value = '';
+    await refreshCurrentTree();
+    renderLecturesForCurrentChapter();
+  } catch (e) { toast(e.message, 'error'); }
+  btn.disabled = false;
+}
+
+async function refreshCurrentTree() {
+  const courseId = document.getElementById('pickCourse').value;
+  if (!courseId) return;
+  contentTree = await api(`/user/course?id=${courseId}`);
+}
+
+function openLectureEditModal(id) {
+  const chapter = currentChapter();
+  const lecture = chapter?.lectures.find(l => l.id === id);
+  if (!lecture) return;
+  openModal(`
+    <h3>Edit lecture</h3>
+    <form id="lecEditForm">
+      <div class="field"><label>Title</label><input name="title" required value="${escapeHtml(lecture.title)}"></div>
+      <div class="form-row">
+        <div class="field"><label>YouTube ID</label><input name="youtube_id" value="${escapeHtml(lecture.youtube_id || '')}"></div>
+        <div class="field"><label>Order</label><input name="sort_order" type="number" value="${lecture.sort_order}"></div>
+      </div>
+      <div class="field"><label>PDF URL</label><input name="pdf_url" value="${escapeHtml(lecture.pdf_url || '')}"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save changes</button>
+      </div>
+    </form>`);
+  document.getElementById('lecEditForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      await api(`/admin/lectures/${id}`, {
+        method: 'PUT',
+        body: { title: f.title.value.trim(), youtube_id: f.youtube_id.value.trim(), pdf_url: f.pdf_url.value.trim(), sort_order: Number(f.sort_order.value) || 0 }
+      });
+      closeModal();
+      toast('Lecture updated.', 'success');
+      await refreshCurrentTree();
+      renderLecturesForCurrentChapter();
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+async function deleteLecture(id) {
+  if (!confirm('Delete this lecture?')) return;
+  try {
+    await api(`/admin/lectures/${id}`, { method: 'DELETE' });
+    toast('Lecture deleted.', 'success');
+    await refreshCurrentTree();
+    renderLecturesForCurrentChapter();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function openSubjectModal() {
+  const courseId = document.getElementById('pickCourse').value;
+  if (!courseId) return;
+  openModal(`
+    <h3>New subject</h3>
+    <form id="subjectForm">
+      <div class="field"><label>Title</label><input name="title" required></div>
+      <div class="field"><label>Description</label><textarea name="description"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create subject</button>
+      </div>
+    </form>`);
+  document.getElementById('subjectForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      const sortOrder = contentTree?.subjects.length || 0;
+      const { id } = await api('/admin/subjects', {
+        method: 'POST', body: { course_id: Number(courseId), title: f.title.value.trim(), description: f.description.value.trim(), sort_order: sortOrder }
+      });
+      closeModal();
+      toast('Subject created.', 'success');
+      await refreshCurrentTree();
+      populateSelect('pickSubject', contentTree.subjects.map(s => [s.id, s.title]), 'Select a subject…');
+      document.getElementById('pickSubject').disabled = false;
+      document.getElementById('pickSubject').value = id;
+      await onPickSubject();
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+function openChapterModal() {
+  const subjectId = document.getElementById('pickSubject').value;
+  if (!subjectId) return;
+  openModal(`
+    <h3>New chapter</h3>
+    <form id="chapterForm">
+      <div class="field"><label>Title</label><input name="title" required></div>
+      <div class="field"><label>Description</label><textarea name="description"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create chapter</button>
+      </div>
+    </form>`);
+  document.getElementById('chapterForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      const subject = contentTree.subjects.find(s => String(s.id) === String(subjectId));
+      const sortOrder = subject?.chapters.length || 0;
+      const { id } = await api('/admin/chapters', {
+        method: 'POST', body: { subject_id: Number(subjectId), title: f.title.value.trim(), description: f.description.value.trim(), sort_order: sortOrder }
+      });
+      closeModal();
+      toast('Chapter created.', 'success');
+      await refreshCurrentTree();
+      const refreshedSubject = contentTree.subjects.find(s => String(s.id) === String(subjectId));
+      populateSelect('pickChapter', refreshedSubject.chapters.map(c => [c.id, c.title]), 'Select a chapter…');
+      document.getElementById('pickChapter').disabled = false;
+      document.getElementById('pickChapter').value = id;
+      onPickChapter();
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+/* ============================================================
+   BULK IMPORT
+   ============================================================ */
+async function loadBulkTab() {
+  const el = document.getElementById('tab-bulk');
+  el.innerHTML = `
+    <div class="page-head"><div><h2>Bulk Import</h2><div class="page-sub">Optional — for loading many lectures or a whole course at once</div></div></div>
+
+    <div class="section">
+      <h3>Quick paste (into one chapter)</h3>
+      <div class="card">
+        <div class="form-row">
+          <div class="field"><label>Course</label><select id="bulkCourse"><option value="">Select a course…</option></select></div>
+          <div class="field"><label>Subject</label><select id="bulkSubject" disabled><option value="">Select course first</option></select></div>
+        </div>
+        <div class="field"><label>Chapter</label><select id="bulkChapter" disabled><option value="">Select subject first</option></select></div>
+        <div class="field">
+          <label>Lectures — one per line: <code>Title | YouTube ID | PDF URL</code></label>
+          <textarea id="bulkLines" rows="6" placeholder="Intro to Vectors | dQw4w9WgXcQ | https://pdf-link.com/1.pdf
+Vector Addition | abc123xyz |"></textarea>
+          <div class="hint">PDF URL is optional — leave it blank after the last |.</div>
+        </div>
+        <button class="btn btn-primary" id="bulkQuickBtn">${icon('upload', 16)} Import lectures</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Full course import (subjects → chapters → lectures)</h3>
+      <div class="card">
+        <div class="field"><label>Course</label><select id="bulkFullCourse"><option value="">Select a course…</option></select></div>
+        <div class="field">
+          <label>JSON</label>
+          <textarea id="bulkFullJson" rows="10" placeholder='[
+  {
+    "title": "Physics",
+    "chapters": [
+      { "title": "Kinematics", "lectures": [
+        { "title": "Speed & Velocity", "youtube_id": "abc123", "pdf_url": "" }
+      ]}
+    ]
+  }
+]'></textarea>
+        </div>
+        <button class="btn btn-primary" id="bulkFullBtn">${icon('upload', 16)} Import course structure</button>
+      </div>
+    </div>`;
+
+  await refreshCourses();
+  populateSelect('bulkCourse', allCourses.map(c => [c.id, c.title]), 'Select a course…');
+  populateSelect('bulkFullCourse', allCourses.map(c => [c.id, c.title]), 'Select a course…');
+
+  document.getElementById('bulkCourse').addEventListener('change', onBulkCourseChange);
+  document.getElementById('bulkSubject').addEventListener('change', onBulkSubjectChange);
+  document.getElementById('bulkQuickBtn').addEventListener('click', onBulkQuickImport);
+  document.getElementById('bulkFullBtn').addEventListener('click', onBulkFullImport);
+}
+
+let bulkTree = null;
+async function onBulkCourseChange() {
+  const courseId = document.getElementById('bulkCourse').value;
+  const subjectSel = document.getElementById('bulkSubject');
+  const chapterSel = document.getElementById('bulkChapter');
+  if (!courseId) {
+    subjectSel.innerHTML = `<option value="">Select course first</option>`; subjectSel.disabled = true;
+    chapterSel.innerHTML = `<option value="">Select subject first</option>`; chapterSel.disabled = true;
+    return;
+  }
+  bulkTree = await api(`/user/course?id=${courseId}`);
+  populateSelect('bulkSubject', bulkTree.subjects.map(s => [s.id, s.title]), 'Select a subject…');
+  subjectSel.disabled = false;
+  chapterSel.innerHTML = `<option value="">Select subject first</option>`; chapterSel.disabled = true;
+}
+function onBulkSubjectChange() {
+  const subjectId = document.getElementById('bulkSubject').value;
+  const chapterSel = document.getElementById('bulkChapter');
+  const subject = bulkTree?.subjects.find(s => String(s.id) === subjectId);
+  if (!subject) { chapterSel.innerHTML = `<option value="">Select subject first</option>`; chapterSel.disabled = true; return; }
+  populateSelect('bulkChapter', subject.chapters.map(c => [c.id, c.title]), 'Select a chapter…');
+  chapterSel.disabled = false;
+}
+
+async function onBulkQuickImport() {
+  const chapterId = document.getElementById('bulkChapter').value;
+  if (!chapterId) return toast('Pick a course, subject and chapter first.', 'error');
+  const lines = document.getElementById('bulkLines').value.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return toast('Paste at least one lecture line.', 'error');
+  const lectures = lines.map(line => {
+    const [title, youtube_id, pdf_url] = line.split('|').map(s => (s || '').trim());
+    return { title, youtube_id: youtube_id || '', pdf_url: pdf_url || '' };
+  }).filter(l => l.title);
+  try {
+    const res = await api('/admin/bulk-import/quick', { method: 'POST', body: { chapter_id: Number(chapterId), lectures } });
+    toast(res.message, 'success');
+    document.getElementById('bulkLines').value = '';
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function onBulkFullImport() {
+  const courseId = document.getElementById('bulkFullCourse').value;
+  if (!courseId) return toast('Pick a course first.', 'error');
+  let data;
+  try { data = JSON.parse(document.getElementById('bulkFullJson').value); }
+  catch (e) { return toast('That JSON isn\'t valid — check for a missing comma or bracket.', 'error'); }
+  try {
+    const res = await api('/admin/bulk-import/full', { method: 'POST', body: { course_id: Number(courseId), data } });
+    toast(res.message, 'success');
+    document.getElementById('bulkFullJson').value = '';
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ============================================================
+   USERS
+   ============================================================ */
+async function loadUsersTab() {
+  const el = document.getElementById('tab-users');
+  el.innerHTML = `
+    <div class="page-head"><div><h2>Users</h2><div class="page-sub">Manually enroll users into paid courses</div></div></div>
+    <div class="field" style="max-width:320px"><input id="userSearch" type="text" placeholder="Search by name or email…"></div>
+    <div id="usersTableWrap">${loadingRow()}</div>`;
+  document.getElementById('userSearch').addEventListener('input', renderUsersTable);
+  await refreshUsers();
+  renderUsersTable();
+}
+
+function renderUsersTable() {
+  const q = (document.getElementById('userSearch')?.value || '').toLowerCase();
+  const filtered = allUsers.filter(u => !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
+  const rows = filtered.map(u => [
+    escapeHtml(u.name),
+    escapeHtml(u.email),
+    u.role === 'admin' ? '<span class="pill pill-blue">Admin</span>' : '<span class="pill pill-grey">Student</span>',
+    u.is_blocked ? '<span class="pill pill-red">Blocked</span>' : '<span class="pill pill-green">Active</span>',
+    `<div class="actions">
+       ${u.role !== 'admin' ? `<button class="btn btn-text btn-sm" onclick="openEnrollModal(${u.id})">Enroll</button>` : ''}
+       ${u.role !== 'admin' ? (u.is_blocked
+         ? `<button class="btn btn-text btn-sm" onclick="setUserBlocked(${u.id}, false)">Unblock</button>`
+         : `<button class="btn btn-text btn-sm" onclick="setUserBlocked(${u.id}, true)">Block</button>`) : ''}
+       ${u.role !== 'admin' ? `<button class="btn btn-text btn-sm" onclick="deleteUser(${u.id})">${icon('trash', 16)}</button>` : ''}
+     </div>`
+  ]);
+  document.getElementById('usersTableWrap').innerHTML = renderTable({
+    headers: ['Name', 'Email', 'Role', 'Status', ''], rows, empty: 'No users match.'
+  });
+}
+
+async function setUserBlocked(id, blocked) {
+  try {
+    await api(`/admin/users/${id}/${blocked ? 'block' : 'unblock'}`, { method: 'PUT' });
+    toast(blocked ? 'User blocked.' : 'User unblocked.', 'success');
+    await refreshUsers();
+    renderUsersTable();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteUser(id) {
+  if (!confirm('Delete this user? This also removes their enrollments and notifications.')) return;
+  try {
+    await api(`/admin/users/${id}`, { method: 'DELETE' });
+    toast('User deleted.', 'success');
+    await refreshUsers();
+    renderUsersTable();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function openEnrollModal(userId) {
+  const user = allUsers.find(u => u.id === userId);
+  openModal(`
+    <h3>Enroll ${escapeHtml(user.name)}</h3>
+    <form id="enrollForm">
+      <div class="field"><label>Course</label>
+        <select name="course_id" required>
+          <option value="">Select a course…</option>
+          ${allCourses.map(c => `<option value="${c.id}">${escapeHtml(c.title)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Enroll</button>
+      </div>
+    </form>`);
+  document.getElementById('enrollForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await api('/admin/enrollments', { method: 'POST', body: { user_id: userId, course_id: Number(e.target.course_id.value) } });
+      closeModal();
+      toast('User enrolled.', 'success');
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+/* ============================================================
+   ENROLLMENTS
+   ============================================================ */
+async function loadEnrollmentsTab() {
+  const el = document.getElementById('tab-enrollments');
+  el.innerHTML = `
+    <div class="page-head"><div><h2>Enrollments</h2><div class="page-sub">Who's enrolled in what</div></div>
+      <button class="btn btn-primary" id="newEnrollBtn">${icon('plus', 16)} New enrollment</button></div>
+    <div id="enrollTableWrap">${loadingRow()}</div>`;
+  document.getElementById('newEnrollBtn').addEventListener('click', openNewEnrollmentModal);
+  await Promise.all([refreshUsers(), refreshCourses()]);
+  try {
+    const { enrollments } = await api('/admin/enrollments');
+    const rows = enrollments.map(e => [
+      escapeHtml(e.user_name) + '<br><span style="color:var(--t4);font-size:.78rem">' + escapeHtml(e.user_email) + '</span>',
+      escapeHtml(e.course_title),
+      formatDate(e.enrolled_at),
+      `<div class="actions"><button class="btn btn-text btn-sm" onclick="unenroll(${e.user_id}, ${e.course_id})">${icon('trash', 16)}</button></div>`
+    ]);
+    document.getElementById('enrollTableWrap').innerHTML = renderTable({
+      headers: ['User', 'Course', 'Enrolled', ''], rows, empty: 'No enrollments yet.'
+    });
+  } catch (e) {
+    document.getElementById('enrollTableWrap').innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function openNewEnrollmentModal() {
+  openModal(`
+    <h3>New enrollment</h3>
+    <form id="newEnrollForm">
+      <div class="field"><label>User</label>
+        <select name="user_id" required>
+          <option value="">Select a user…</option>
+          ${allUsers.filter(u => u.role !== 'admin').map(u => `<option value="${u.id}">${escapeHtml(u.name)} — ${escapeHtml(u.email)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Course</label>
+        <select name="course_id" required>
+          <option value="">Select a course…</option>
+          ${allCourses.map(c => `<option value="${c.id}">${escapeHtml(c.title)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Enroll</button>
+      </div>
+    </form>`);
+  document.getElementById('newEnrollForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      await api('/admin/enrollments', { method: 'POST', body: { user_id: Number(f.user_id.value), course_id: Number(f.course_id.value) } });
+      closeModal();
+      toast('User enrolled.', 'success');
+      loadEnrollmentsTab();
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+async function unenroll(userId, courseId) {
+  if (!confirm('Remove this enrollment?')) return;
+  try {
+    await api(`/admin/enrollments/${userId}/${courseId}`, { method: 'DELETE' });
+    toast('Enrollment removed.', 'success');
+    loadEnrollmentsTab();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ============================================================
+   NOTIFICATIONS
+   ============================================================ */
+async function loadNotificationsTab() {
+  const el = document.getElementById('tab-notifications');
+  el.innerHTML = `
+    <div class="page-head"><div><h2>Notifications</h2><div class="page-sub">New-lecture alerts are sent automatically — use this for manual announcements</div></div></div>
+    <div class="section">
+      <div class="card">
+        <form id="notifForm">
+          <div class="field"><label>Title</label><input name="title" required placeholder="e.g. Exam schedule posted"></div>
+          <div class="field"><label>Message</label><textarea name="message" required></textarea></div>
+          <div class="form-row">
+            <div class="field"><label>Link (optional)</label><input name="link" placeholder="/course.html?id=1"></div>
+            <div class="field"><label>Send to</label>
+              <select name="user_id" id="notifTarget">
+                <option value="">Everyone (broadcast)</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary" type="submit">${icon('bell', 16)} Send notification</button>
+        </form>
+      </div>
+    </div>
+    <div class="section">
+      <h3>Recent notifications</h3>
+      <div id="notifTableWrap">${loadingRow()}</div>
+    </div>`;
+
+  await refreshUsers();
+  const sel = document.getElementById('notifTarget');
+  allUsers.filter(u => u.role !== 'admin').forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u.id; opt.textContent = `${u.name} — ${u.email}`;
+    sel.appendChild(opt);
+  });
+
+  document.getElementById('notifForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const body = { title: f.title.value.trim(), message: f.message.value.trim(), link: f.link.value.trim() };
+    if (f.user_id.value) body.user_id = Number(f.user_id.value);
+    try {
+      await api('/admin/notifications', { method: 'POST', body });
+      toast('Notification sent.', 'success');
+      f.reset();
+      renderNotificationsTable();
+    } catch (err) { toast(err.message, 'error'); }
+  });
+
+  renderNotificationsTable();
+}
+
+async function renderNotificationsTable() {
+  const wrap = document.getElementById('notifTableWrap');
+  wrap.innerHTML = loadingRow();
+  try {
+    const { notifications } = await api('/admin/notifications');
+    const rows = notifications.map(n => [
+      escapeHtml(n.title),
+      n.user_name ? escapeHtml(n.user_name) : '<span class="pill pill-blue">Broadcast</span>',
+      formatDate(n.created_at),
+      `<div class="actions"><button class="btn btn-text btn-sm" onclick="deleteNotification(${n.id})">${icon('trash', 16)}</button></div>`
+    ]);
+    wrap.innerHTML = renderTable({ headers: ['Title', 'Sent to', 'Date', ''], rows, empty: 'No notifications sent yet.' });
+  } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+}
+
+async function deleteNotification(id) {
+  if (!confirm('Delete this notification?')) return;
+  try {
+    await api(`/admin/notifications/${id}`, { method: 'DELETE' });
+    renderNotificationsTable();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ============================================================
+   RESOURCES
+   ============================================================ */
+async function loadResourcesTab() {
+  const el = document.getElementById('tab-resources');
+  el.innerHTML = `
+    <div class="page-head"><div><h2>Resources</h2><div class="page-sub">Supplementary links per course</div></div></div>
+    <div class="field" style="max-width:320px"><label>Course</label>
+      <select id="resCourse"><option value="">Select a course…</option></select>
+    </div>
+    <div id="resContent" class="hidden">
+      <div class="section">
+        <div class="card">
+          <form id="resForm">
+            <div class="field"><label>Title</label><input name="title" required></div>
+            <div class="field"><label>Description</label><textarea name="description"></textarea></div>
+            <div class="field"><label>Link URL</label><input name="link_url" placeholder="https://…"></div>
+            <button class="btn btn-primary" type="submit">${icon('plus', 16)} Add resource</button>
+          </form>
+        </div>
+      </div>
+      <div id="resTableWrap"></div>
+    </div>`;
+
+  await refreshCourses();
+  populateSelect('resCourse', allCourses.map(c => [c.id, c.title]), 'Select a course…');
+  document.getElementById('resCourse').addEventListener('change', onResCourseChange);
+  document.getElementById('resForm').addEventListener('submit', onAddResource);
+}
+
+let resTree = null;
+async function onResCourseChange() {
+  const courseId = document.getElementById('resCourse').value;
+  if (!courseId) { document.getElementById('resContent').classList.add('hidden'); return; }
+  document.getElementById('resContent').classList.remove('hidden');
+  resTree = await api(`/user/course?id=${courseId}`);
+  renderResourcesTable();
+}
+
+function renderResourcesTable() {
+  const rows = (resTree?.resources || []).map(r => [
+    escapeHtml(r.title),
+    r.link_url ? `<a href="${escapeHtml(r.link_url)}" target="_blank" rel="noopener">Open</a>` : '—',
+    `<div class="actions"><button class="btn btn-text btn-sm" onclick="deleteResource(${r.id})">${icon('trash', 16)}</button></div>`
+  ]);
+  document.getElementById('resTableWrap').innerHTML = renderTable({ headers: ['Title', 'Link', ''], rows, empty: 'No resources for this course yet.' });
+}
+
+async function onAddResource(e) {
+  e.preventDefault();
+  const courseId = document.getElementById('resCourse').value;
+  const f = e.target;
+  try {
+    await api('/admin/resources', {
+      method: 'POST',
+      body: { course_id: Number(courseId), title: f.title.value.trim(), description: f.description.value.trim(), link_url: f.link_url.value.trim() }
+    });
+    toast('Resource added.', 'success');
+    f.reset();
+    resTree = await api(`/user/course?id=${courseId}`);
+    renderResourcesTable();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function deleteResource(id) {
+  if (!confirm('Delete this resource?')) return;
+  try {
+    await api(`/admin/resources/${id}`, { method: 'DELETE' });
+    const courseId = document.getElementById('resCourse').value;
+    resTree = await api(`/user/course?id=${courseId}`);
+    renderResourcesTable();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ============================================================
+   AUDIT LOG
+   ============================================================ */
+async function loadAuditTab() {
+  const el = document.getElementById('tab-audit');
+  el.innerHTML = `
+    <div class="page-head"><div><h2>Audit Log</h2><div class="page-sub">Admin actions on this account</div></div>
+      <button class="btn btn-danger" id="clearAuditBtn">${icon('trash', 16)} Clear all</button></div>
+    <div id="auditTableWrap">${loadingRow()}</div>`;
+  document.getElementById('clearAuditBtn').addEventListener('click', clearAuditLog);
+  renderAuditTable();
+}
+
+async function renderAuditTable() {
+  const wrap = document.getElementById('auditTableWrap');
+  try {
+    const { logs } = await api('/admin/audit-logs');
+    const rows = logs.map(l => [
+      escapeHtml(l.action),
+      escapeHtml(l.user_name || 'system'),
+      escapeHtml(l.ip_address || '—'),
+      formatDate(l.created_at)
+    ]);
+    wrap.innerHTML = renderTable({ headers: ['Action', 'By', 'IP', 'Date'], rows, empty: 'No log entries yet.' });
+  } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+}
+
+async function clearAuditLog() {
+  if (!confirm('Delete all audit log entries? This cannot be undone.')) return;
+  try {
+    await api('/admin/audit-logs/all', { method: 'DELETE' });
+    toast('Audit log cleared.', 'success');
+    renderAuditTable();
+  } catch (e) { toast(e.message, 'error'); }
+}
+</script>
+</body>
+</html>
