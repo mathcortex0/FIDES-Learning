@@ -503,7 +503,7 @@ async function handleAdmin(method, path, body, db, user, request) {
     if (!title) return err('Title required', 400);
     const result = await db.prepare(
       'INSERT INTO courses (title, description, thumbnail_url, icon, is_featured) VALUES (?, ?, ?, ?, ?)'
-    ).bind(title.trim(), description || '', thumbnail_url || '', icon || '📚', is_featured ? 1 : 0).run();
+    ).bind(title.trim(), description || '', thumbnail_url || '', icon || '', is_featured ? 1 : 0).run();
     await db.prepare(
       'INSERT INTO audit_logs (user_id, action, ip_address, user_agent) VALUES (?, ?, ?, ?)'
     ).bind(user.id, `created_course_${result.meta.last_row_id}`, getIp(request), getUa(request)).run();
@@ -517,7 +517,7 @@ async function handleAdmin(method, path, body, db, user, request) {
     await db.prepare(
       `UPDATE courses SET title = ?, description = ?, thumbnail_url = ?, icon = ?,
        is_featured = ?, updated_at = datetime('now') WHERE id = ?`
-    ).bind(title.trim(), description || '', thumbnail_url || '', icon || '📚', is_featured ? 1 : 0, courseId).run();
+    ).bind(title.trim(), description || '', thumbnail_url || '', icon || '', is_featured ? 1 : 0, courseId).run();
     return json({ message: 'Course updated.' });
   }
 
