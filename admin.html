@@ -16,7 +16,7 @@
   <header class="header">
     <div class="header-left">
       <a href="/admin.html" class="logo-wrap">
-        <span class="logo-mark">F</span>
+        <img src="images/fl.png" alt="FIDES Learning" class="logo-img">
         <span class="logo-text">FIDES Learning</span>
       </a>
       <span class="badge-admin">Admin</span>
@@ -39,6 +39,8 @@
     <section id="tab-resources" class="tab-panel hidden"></section>
     <section id="tab-audit" class="tab-panel hidden"></section>
   </main>
+
+  <footer id="siteFooter" class="site-footer admin-footer"></footer>
 </div>
 
 <div id="toastRoot" class="toast-container"></div>
@@ -105,7 +107,7 @@ function renderAuthScreen(hasAdmin) {
   if (!hasAdmin) {
     wrap.innerHTML = `
       <div class="auth-wrap"><div class="auth-card">
-        <div class="auth-logo"><span class="logo-mark">F</span></div>
+        <div class="auth-logo"><img src="images/fl.png" alt="FIDES Learning" style="width:44px;height:44px"></div>
         <h2 class="auth-title">Create admin account</h2>
         <p class="auth-sub">This runs once. After this, you'll log in normally.</p>
         <div id="authError"></div>
@@ -121,7 +123,7 @@ function renderAuthScreen(hasAdmin) {
   } else {
     wrap.innerHTML = `
       <div class="auth-wrap"><div class="auth-card">
-        <div class="auth-logo"><span class="logo-mark">F</span></div>
+        <div class="auth-logo"><img src="images/fl.png" alt="FIDES Learning" style="width:44px;height:44px"></div>
         <h2 class="auth-title">Admin login</h2>
         <p class="auth-sub">FIDES Learning</p>
         <div id="authError"></div>
@@ -355,7 +357,7 @@ function openCourseModal(id) {
       <div class="field"><label>Title</label><input name="title" required value="${escapeHtml(course?.title || '')}"></div>
       <div class="field"><label>Description</label><textarea name="description">${escapeHtml(course?.description || '')}</textarea></div>
       <div class="form-row">
-        <div class="field"><label>Icon (emoji)</label><input name="icon" value="${escapeHtml(course?.icon || '📚')}"></div>
+        <div class="field"><label>Icon label (optional, short text)</label><input name="icon" value="${escapeHtml(course?.icon || '')}" placeholder="Shown only if no thumbnail is set"></div>
         <div class="field"><label>Thumbnail URL</label><input name="thumbnail_url" value="${escapeHtml(course?.thumbnail_url || '')}"></div>
       </div>
       <div class="checkbox-row" style="margin-bottom:8px">
