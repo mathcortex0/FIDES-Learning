@@ -9,64 +9,74 @@
   /* Page-specific: landing hero + auth split layout */
   body{padding-top:0}
   .landing-header{
-    position:fixed;top:0;left:0;right:0;height:var(--hh);background:var(--surf);
+    position:fixed;top:0;left:0;right:0;height:var(--hh);
+    background:rgba(255,255,255,.86);backdrop-filter:saturate(180%) blur(14px);
+    -webkit-backdrop-filter:saturate(180%) blur(14px);
     border-bottom:1px solid var(--border);z-index:1000;display:flex;align-items:center;
-    padding:0 20px;
+    justify-content:space-between;padding:0 22px;
   }
+  .landing-header-cta{display:flex;align-items:center;gap:10px}
   .landing-wrap{
-    padding-top:var(--hh);min-height:100vh;display:grid;
-    grid-template-columns:1.1fr 1fr;align-items:center;gap:40px;
-    max-width:1080px;margin:0 auto;padding-left:24px;padding-right:24px;
+    padding-top:calc(var(--hh) + 32px);min-height:calc(100vh - 40px);display:grid;
+    grid-template-columns:1.1fr 1fr;align-items:center;gap:52px;
+    max-width:1140px;margin:0 auto;padding-left:24px;padding-right:24px;padding-bottom:40px;
   }
   @media (max-width:860px){
-    .landing-wrap{grid-template-columns:1fr;padding-top:calc(var(--hh) + 24px);gap:28px}
+    .landing-wrap{grid-template-columns:1fr;padding-top:calc(var(--hh) + 24px);gap:32px}
   }
 
-  .hero-eyebrow-mark{
-    width:44px;height:44px;border-radius:12px;background:var(--blue);color:#fff;
-    display:flex;align-items:center;justify-content:center;font-family:var(--gs);
-    font-weight:500;font-size:1.2rem;margin-bottom:20px;
+  .hero-eyebrow{
+    display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:var(--rr);
+    background:var(--blue-bg);color:var(--blue-h);font-size:.76rem;font-weight:700;
+    letter-spacing:.02em;margin-bottom:22px;
   }
+  .hero-eyebrow span.dot{width:6px;height:6px;border-radius:50%;background:var(--violet)}
   .hero h1{
-    font-size:2.3rem;line-height:1.2;letter-spacing:-.5px;max-width:11ch;margin-bottom:16px;
+    font-size:2.6rem;line-height:1.16;letter-spacing:-.03em;max-width:13ch;margin-bottom:18px;
   }
-  .hero p{color:var(--t3);font-size:1rem;max-width:42ch;margin-bottom:32px}
-  @media (max-width:860px){ .hero h1{font-size:1.7rem;max-width:none} .hero p{max-width:none} }
+  .hero p{color:var(--t3);font-size:1.05rem;max-width:44ch;margin-bottom:36px;line-height:1.65}
+  @media (max-width:860px){ .hero h1{font-size:1.9rem;max-width:none} .hero p{max-width:none;font-size:1rem} }
 
-  .feature-list{display:flex;flex-direction:column;gap:18px}
-  .feature{display:flex;gap:14px;align-items:flex-start}
+  .feature-list{display:flex;flex-direction:column;gap:20px}
+  .feature{display:flex;gap:15px;align-items:flex-start}
   .feature-icon{
-    width:34px;height:34px;border-radius:8px;background:var(--blue-bg);color:var(--blue);
+    width:38px;height:38px;border-radius:11px;background:var(--surf);color:var(--blue);
     display:flex;align-items:center;justify-content:center;flex-shrink:0;
+    border:1px solid var(--border);box-shadow:var(--shadow-xs);
   }
-  .feature-title{font-family:var(--gs);font-weight:500;color:var(--t1);font-size:.92rem;margin-bottom:2px}
-  .feature-desc{color:var(--t3);font-size:.85rem;line-height:1.5}
+  .feature-title{font-family:var(--gs);font-weight:600;color:var(--t1);font-size:.94rem;margin-bottom:2px}
+  .feature-desc{color:var(--t3);font-size:.86rem;line-height:1.55}
 
   .auth-panel{
     background:var(--surf);border:1px solid var(--border);border-radius:var(--rl);
-    padding:32px;width:100%;max-width:400px;justify-self:end;
+    padding:34px;width:100%;max-width:406px;justify-self:end;box-shadow:var(--shadow-lg);
   }
   @media (max-width:860px){ .auth-panel{justify-self:stretch;max-width:none} }
 
-  .auth-tabs{display:flex;border:1px solid var(--border);border-radius:var(--r);
-    overflow:hidden;margin-bottom:24px}
-  .auth-tab{flex:1;padding:10px;text-align:center;font-size:.85rem;font-weight:500;
-    color:var(--t3);cursor:pointer;background:var(--surf);border:none;transition:background var(--tr),color var(--tr)}
-  .auth-tab.active{background:var(--blue);color:#fff}
+  .auth-panel-head{text-align:center;margin-bottom:22px}
+  .auth-panel-head h3{margin-bottom:4px}
+  .auth-panel-head p{color:var(--t3);font-size:.85rem;margin:0}
+
+  .auth-tabs{display:flex;background:var(--hov);border-radius:var(--r);
+    overflow:hidden;margin-bottom:24px;padding:4px;gap:4px}
+  .auth-tab{flex:1;padding:9px;text-align:center;font-size:.85rem;font-weight:600;
+    color:var(--t3);cursor:pointer;background:transparent;border:none;border-radius:calc(var(--r) - 3px);
+    transition:background var(--tr),color var(--tr)}
+  .auth-tab.active{background:var(--surf);color:var(--t1);box-shadow:var(--shadow-xs)}
 </style>
 </head>
 <body>
 
 <header class="landing-header">
   <div class="logo-wrap">
-    <span class="logo-mark">F</span>
+    <img src="images/fl.png" alt="FIDES Learning" class="logo-img">
     <span class="logo-text">FIDES Learning</span>
   </div>
 </header>
 
 <div class="landing-wrap">
   <div class="hero">
-    <div class="hero-eyebrow-mark">F</div>
+    <div class="hero-eyebrow"><span class="dot"></span>Structured learning, done right</div>
     <h1>Your classes, organized the way you actually study.</h1>
     <p>Every course is broken into subjects, chapters, and lectures — so you always know what's next, not just what's new.</p>
 
@@ -87,6 +97,10 @@
   </div>
 
   <div class="auth-panel">
+    <div class="auth-panel-head">
+      <h3>Welcome</h3>
+      <p>Sign in to continue your courses</p>
+    </div>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tabLogin">Log in</button>
       <button class="auth-tab" id="tabRegister">Sign up</button>
@@ -108,6 +122,8 @@
     </form>
   </div>
 </div>
+
+<footer id="siteFooter" class="site-footer"></footer>
 
 <div id="toastRoot" class="toast-container"></div>
 
